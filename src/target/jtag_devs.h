@@ -31,5 +31,10 @@ typedef struct jtag_dev_descr {
 } jtag_dev_descr_s;
 
 extern const jtag_dev_descr_s dev_descr[];
+/* High level functions, provided as weak in swdptap_generic.c */
+uint32_t swdptap_seq_in(int ticks);
+bool swdptap_seq_in_parity(uint32_t *data, int ticks);
+void swdptap_seq_out(uint32_t MS, int ticks);
+void swdptap_seq_out_parity(uint32_t MS, int ticks);
 
 #endif /* TARGET_JTAG_DEVS_H */
