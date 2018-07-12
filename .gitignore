@@ -21,3 +21,4 @@ blackmagic_upgrade
 .gdb_history
 src/artifacts/
 
+.DS_Store

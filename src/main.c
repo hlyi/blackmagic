@@ -43,6 +43,7 @@ int main(int argc, char **argv)
 		volatile exception_s e;
 		TRY_CATCH (e, EXCEPTION_ALL) {
 			gdb_main();
+			uart_pop();
 		}
 		if (e.type) {
 			gdb_putpacketz("EFF");
