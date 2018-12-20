@@ -136,7 +136,7 @@ $(TARGET): include/version.h $(OBJ)
 ifndef PC_HOSTED
 %.bin:	%.elf
 	@echo "  OBJCOPY $@"
-	$(Q)$(OBJCOPY) -O binary $^ $@
+	$(Q)$(OBJCOPY) $(OBJCOPY_FLAGS) -O binary $^ $@
 
 %.hex:	%.elf
 	@echo "  OBJCOPY $@"
