@@ -30,7 +30,7 @@ LDFLAGS = -mthumb -mcpu=cortex-m0plus -msoft-float -nostartfiles -lc \
 ifeq ($(ENABLE_DEBUG), 1)
 LDFLAGS += --specs=rdimon.specs
 else
-LDFLAGS += --specs=nosys.specs
+LDFLAGS += --specs=nano.specs
 endif
 
 VPATH += platforms/samd
