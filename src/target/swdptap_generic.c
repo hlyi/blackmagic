@@ -19,11 +19,6 @@
  */
 #include "general.h"
 
-int swdptap_init(void)
-{
-	return 0;
-}
-
 static uint8_t olddir = 0;
 
 static inline void swdptap_set_out(void)
@@ -143,4 +138,16 @@ void swdptap_seq_out_parity(uint32_t MS, int ticks)
 		MS >>= 1U;
 	}
 	swdptap_bit_out(parity & 1U);
+}
+
+swd_proc_t swd_proc;
+
+int swdptap_init(void)
+{
+	swd_proc.swdptap_seq_in  = swdptap_seq_in;
+	swd_proc.swdptap_seq_in_parity  = swdptap_seq_in_parity;
+	swd_proc.swdptap_seq_out = swdptap_seq_out;
+	swd_proc.swdptap_seq_out_parity  = swdptap_seq_out_parity;
+
+	return 0;
 }
