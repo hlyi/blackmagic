@@ -232,6 +232,7 @@ static const struct {
 	{0x975, 0x13, 0x4a13, aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("Cortex-M7 ETM",  "(Embedded Trace)")},
 	{0x9a0, 0x00, 0,      aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("CoreSight PMU",  "(Performance Monitoring Unit)")},
 	{0x9a1, 0x11, 0,      aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("Cortex-M4 TPIU", "(Trace Port Interface Unit)")},
+	{0x9a6, 0x14, 0x1a14, aa_nosupport, cidc_dc,      PIDR_PN_BIT_STRINGS("Cortex-M0+ CTI", "(Cross Trigger Interface)")},
 	{0x9a9, 0x11, 0,      aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("Cortex-M7 TPIU", "(Trace Port Interface Unit)")},
 	{0x9a5, 0x00, 0,      aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("Cortex-A5 ETM",  "(Embedded Trace)")},
 	{0x9a7, 0x16, 0,      aa_nosupport, cidc_unknown, PIDR_PN_BIT_STRINGS("Cortex-A7 PMU",  "(Performance Monitor Unit)")},
@@ -294,9 +295,10 @@ static uint32_t adiv5_mem_read32(ADIv5_AP_t *ap, uint32_t addr)
 static uint32_t adiv5_ap_read_id(ADIv5_AP_t *ap, uint32_t addr)
 {
 	uint32_t res = 0;
+	uint8_t data[16];
+	adiv5_mem_read(ap, data, addr, sizeof(data));
 	for (int i = 0; i < 4; i++) {
-		uint32_t x = adiv5_mem_read32(ap, addr + 4 * i);
-		res |= (x & 0xff) << (i * 8);
+		res |= (data[4 * i] << (i * 8));
 	}
 	return res;
 }
