@@ -48,7 +48,7 @@
  * TMS = 	PA1 (input for SWDP)
  * TCK = 	PA7/SWCLK
  * TDO = 	PA6 (input for TRACESWO
- * nSRST =	PA5
+ * nRST =	PA5
  *
  * Force DFU mode button: BOOT0
  */
@@ -69,8 +69,8 @@
 #define SWDIO_PIN	TMS_PIN
 #define SWCLK_PIN	TCK_PIN
 
-#define SRST_PORT	GPIOA
-#define SRST_PIN	GPIO5
+#define NRST_PORT	GPIOA
+#define NRST_PIN	GPIO5
 
 #define LED_PORT	GPIOB
 #define LED_PORT_UART	GPIOB

@@ -38,7 +38,7 @@
 #include "dap.h"
 #include "cmsis_dap.h"
 
-#include "cl_utils.h"
+#include "cli.h"
 #include "target.h"
 #include "target_internal.h"
 
@@ -47,11 +47,12 @@ uint8_t mode;
 
 #define TRANSFER_TIMEOUT_MS (100)
 
-typedef enum cmsis_type_s {
+typedef enum cmsis_type_e {
 	CMSIS_TYPE_NONE = 0,
 	CMSIS_TYPE_HID,
 	CMSIS_TYPE_BULK
 } cmsis_type_t;
+
 /*- Variables ---------------------------------------------------------------*/
 static cmsis_type_t type;
 static libusb_device_handle *usb_handle = NULL;
@@ -137,7 +138,7 @@ int dap_init(bmp_info_t *info)
 	return 0;
 }
 
-void dap_srst_set_val(bool assert)
+void dap_nrst_set_val(bool assert)
 {
 	dap_reset_pin(!assert);
 }

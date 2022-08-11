@@ -28,12 +28,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <getopt.h>
 #include "version.h"
 #include "target_internal.h"
 #include "cortexm.h"
 #include "command.h"
 
-#include "cl_utils.h"
+#include "cli.h"
 #include "bmp_hosted.h"
 
 #ifndef O_BINARY
@@ -133,67 +134,98 @@ static void cl_help(char **argv)
 	PRINT_INFO(
 		"\n"
 		"Usage: %s [-h | -l | [-vBITMASK] [-d PATH | -P NUMBER | -s SERIAL | -c TYPE]\n"
-		"  [-n NUMBER] [-j] [-C] [-t | -T] [-e] [-p] [-R[h]] [-H] [-M STRING ...]\n"
-		"  [-E | -w | -V | -r] [-a ADDR] [-S number] [file]]\n"
+		"\t[-n NUMBER] [-j | -A] [-C] [-t | -T] [-e] [-p] [-R[h]] [-H] [-M STRING ...]\n"
+		"\t[-f | -m] [-E | -w | -V | -r] [-a ADDR] [-S number] [file]]\n"
 		"\n"
+		"The default is to start a debug server at localhost:2000\n\n"
 		"Single-shot and verbosity options [-h | -l | -vBITMASK]:\n"
-		"\t-h              Show the version version and this help, then exit\n"
-		"\t-l              List available supported probes\n"
-		"\t-v<bitmask>     Set the output verbosity level based on some combination of:\n"
-		"\t                  1 = INFO, 2 = GDB, 4 = TARGET, 8 = PROBE, 16 = WIRE\n"
+		"\t-h, --help       Show the version and this help, then exit\n"
+		"\t-l, --list       List available supported probes\n"
+		"\t-v, --verbose    Set the output verbosity level based on some combination of:\n"
+		"\t                   1 = INFO, 2 = GDB, 4 = TARGET, 8 = PROBE, 16 = WIRE\n"
 		"\n"
 		"Probe selection arguments [-d PATH | -P NUMBER | -s SERIAL | -c TYPE]:\n"
-		"\t-d <path>       Use a serial device at the given path (Deprecated!)\n"
-		"\t-P <number>     Use the <number>th debug probe found while scanning the\n"
-		"\t                  system, see the output from list for the order\n"
-		"\t-s <serial>     Select the debug probe with the given serial number\n"
-		"\t-c <type>       Select the FTDI-based debug probe with of the given\n"
-		"\t                  type (cable)\n"
+		"\t-d, --device     Use a serial device at the given path (Deprecated!)\n"
+		"\t-P, --probe      Use the <number>th debug probe found while scanning the\n"
+		"\t                   system, see the output from list for the order\n"
+		"\t-s, --serial     Select the debug probe with the given serial number\n"
+		"\t-c, --ftdi-type  Select the FTDI-based debug probe with of the given\n"
+		"\t                   type (cable)\n"
 		"\n"
-		"The default is to start a debug server at localhost:2000\n"
 		"General configuration options: [-n NUMBER] [-j] [-C] [-t | -T] [-e] [-p] [-R[h]]\n"
-		"  [-H] [-M STRING ...]\n"
-		"\t-n <number>     Select the target device at the given position in the\n"
-		"\t                  scan chain (use the -t option to get a scan chain listing)\n"
-		"\t-j              Use JTAG instead of SWD\n"
-		"\t-C              Connect to target under hardware reset\n"
-		"\t-t              Perform a chain scan and display information about the\n"
-		"\t                  conected devices\n"
-		"\t-T              Perform continues read- or write-back of a value to allow\n"
-		"\t                  measurement of protocol timing. Aborted by ^C\n"
-		"\t-e              Assume external resistors for FTDI devices, that is having the\n"
-		"\t                  FTDI chip connected through resistors to TMS, TDI and TDO\n"
-		"\t-p              Power the target from the probe (if possible)\n"
-		"\t-R[h]           Reset the device. If followed by 'h', this will be done using\n"
-		"\t                  the hardware reset line instead of over the debug link\n"
-		"\t-H              Do not use the high level command API (bmp-remote)\n"
-		"\t-M <string>     Run target-specific monitor commands. This option\n"
-		"\t                  can be repeated for as many commands you wish to run.\n"
-		"\t                  If the command contains spaces, use quotes around the\n"
-		"\t                  complete command\n"
+		"\t\t[-H] [-M STRING ...]\n"
+		"\t-n, --number     Select the target device at the given position in the\n"
+		"\t                   scan chain (use the -t option to get a scan chain listing)\n"
+		"\t-j, --jtag       Use JTAG instead of SWD\n"
+		"\t-A, --auto-scan  Automatic scanning - try JTAG first, then SWD\n"
+		"\t-C, --hw-reset   Connect to target under hardware reset\n"
+		"\t-t, --list-chain Perform a chain scan and display information about the\n"
+		"\t                   conected devices\n"
+		"\t-T, --timing     Perform continues read- or write-back of a value to allow\n"
+		"\t                   measurement of protocol timing. Aborted by ^C\n"
+		"\t-e, --ext-res    Assume external resistors for FTDI devices, that is having the\n"
+		"\t                   FTDI chip connected through resistors to TMS, TDI and TDO\n"
+		"\t-p, --power      Power the target from the probe (if possible)\n"
+		"\t-R, --reset      Reset the device. If followed by 'h', this will be done using\n"
+		"\t                   the hardware reset line instead of over the debug link\n"
+		"\t-H, --high-level Do not use the high level command API (bmp-remote)\n"
+		"\t-M, --monitor    Run target-specific monitor commands. This option\n"
+		"\t                   can be repeated for as many commands you wish to run.\n"
+		"\t                   If the command contains spaces, use quotes around the\n"
+		"\t                   complete command\n"
 		"\n"
 		"SWD-specific configuration options [-f FREQUENCY | -m TARGET]:\n"
-		"\t-f <frequency>  Set an operating frequency for SWD\n"
-		"\t-m <target>     Use the given target ID for selection in SWD multi-drop\n"
+		"\t-f, --freq       Set an operating frequency for SWD\n"
+		"\t-m, --mult-drop  Use the given target ID for selection in SWD multi-drop\n"
 		"\n"
 		"Flash operation selection options [-E | -w | -V | -r]:\n"
-		"\t-E              Erase the target device Flash\n"
-		"\t-w              Write the specified binary file to the target device\n"
-		"\t                  Flash (the default)\n"
-		"\t-V              Verify the target device Flash against the specified\n"
-		"\t                  binary file\n"
-		"\t-r              Read the target device Flash\n"
+		"\t-E, --erase      Erase the target device Flash\n"
+		"\t-w, --write      Write the specified binary file to the target device\n"
+		"\t                   Flash (the default)\n"
+		"\t-V, --verify     Verify the target device Flash against the specified\n"
+		"\t                   binary file\n"
+		"\t-r, --read       Read the target device Flash\n"
 		"\n"
 		"Flash operation modifiers options: [-a ADDR] [-S number] [FILE]\n"
-		"\t-a <addr>       Start address for the given Flash operation (defaults to\n"
-		"\t                  the start of Flash)\n"
-		"\t-S <number>     Number of bytes to work on in the Flash operation (default\n"
-		"\t                  is till the operation fails or is complete)\n"
-		"\t<file>          Binary file to use in Flash operations\n",
+		"\t-a, --addr       Start address for the given Flash operation (defaults to\n"
+		"\t                   the start of Flash)\n"
+		"\t-S, --byte-count Number of bytes to work on in the Flash operation (default\n"
+		"\t                   is till the operation fails or is complete)\n"
+		"\t<file>           Binary file to use in Flash operations\n",
 		argv[0]
 	);
 	exit(0);
 }
+
+static const struct option long_options[] = {
+	{"help", no_argument, NULL, 'h'},
+	{"list", no_argument, NULL, 'l'},
+	{"verbose", required_argument, NULL, 'v'},
+	{"device", required_argument, NULL, 'd'},
+	{"probe", required_argument, NULL, 'P'},
+	{"serial", required_argument, NULL, 's'},
+	{"ftdi-type", required_argument, NULL, 'c'},
+	{"number", required_argument, NULL, 'n'},
+	{"jtag", no_argument, NULL, 'j'},
+	{"auto-scan", no_argument, NULL, 'A'},
+	{"hw-reset", no_argument, NULL, 'C'},
+	{"list-chain", no_argument, NULL, 't'},
+	{"timing", no_argument, NULL, 'T'},
+	{"ext-res", no_argument, NULL, 'e'},
+	{"power", no_argument, NULL, 'p'},
+	{"reset", optional_argument, NULL, 'R'},
+	{"high-level", no_argument, NULL, 'H'},
+	{"monitor", required_argument, NULL, 'M'},
+	{"freq", required_argument, NULL, 'f'},
+	{"multi-drop", required_argument, NULL, 'm'},
+	{"erase", no_argument, NULL, 'E'},
+	{"write", no_argument, NULL, 'W'},
+	{"verify", no_argument, NULL, 'V'},
+	{"read", no_argument, NULL, 'r'},
+	{"addr", required_argument, NULL, 'a'},
+	{"byte-count", required_argument, NULL, 'S'},
+	{NULL, 0, NULL, 0}
+} ;
 
 void cl_init(BMP_CL_OPTIONS_t *opt, int argc, char **argv)
 {
@@ -202,7 +234,8 @@ void cl_init(BMP_CL_OPTIONS_t *opt, int argc, char **argv)
 	opt->opt_flash_size = 0xffffffff;
 	opt->opt_flash_start = 0xffffffff;
 	opt->opt_max_swj_frequency = 4000000;
-	while((c = getopt(argc, argv, "eEhHv:d:f:s:I:c:Cln:m:M:wVtTa:S:jpP:rR::")) != -1) {
+	opt->opt_scanmode = BMP_SCAN_SWD;
+	while((c = getopt_long(argc, argv, "eEhHv:d:f:s:I:c:Cln:m:M:wVtTa:S:jApP:rR::", long_options, NULL)) != -1) {
 		switch(c) {
 		case 'c':
 			if (optarg)
@@ -220,7 +253,10 @@ void cl_init(BMP_CL_OPTIONS_t *opt, int argc, char **argv)
 				cl_debuglevel = strtol(optarg, NULL, 0) & (BMP_DEBUG_MAX - 1);
 			break;
 		case 'j':
-			opt->opt_usejtag = true;
+			opt->opt_scanmode = BMP_SCAN_JTAG;
+			break;
+		case 'A':
+			opt->opt_scanmode = BMP_SCAN_AUTO;
 			break;
 		case 'l':
 			opt->opt_list_only = true;
@@ -377,27 +413,36 @@ int cl_execute(BMP_CL_OPTIONS_t *opt)
 		platform_delay(500);
 	}
 	if (opt->opt_mode == BMP_MODE_RESET_HW) {
-			platform_srst_set_val(true);
+			platform_nrst_set_val(true);
 			platform_delay(1);
-			platform_srst_set_val(false);
+			platform_nrst_set_val(false);
 			return res;
 	}
 	if (opt->opt_connect_under_reset)
 		DEBUG_INFO("Connecting under reset\n");
 	connect_assert_srst = opt->opt_connect_under_reset;
-	platform_srst_set_val(opt->opt_connect_under_reset);
+	platform_nrst_set_val(opt->opt_connect_under_reset);
 	if (opt->opt_mode == BMP_MODE_TEST)
 		DEBUG_INFO("Running in Test Mode\n");
 	DEBUG_INFO("Target voltage: %s Volt\n", platform_target_voltage());
-	if (opt->opt_usejtag) {
+
+	if (opt->opt_scanmode == BMP_SCAN_JTAG)
 		num_targets = platform_jtag_scan(NULL);
-	} else {
+	else if (opt->opt_scanmode == BMP_SCAN_SWD)
 		num_targets = platform_adiv5_swdp_scan(opt->opt_targetid);
-		if (!num_targets) {
-			DEBUG_INFO("Scan SWD failed, trying JTAG!\n");
-			num_targets = platform_jtag_scan(NULL);
-		}
+	else
+	{
+		num_targets = platform_jtag_scan(NULL);
+		if (num_targets > 0)
+			goto found_targets;
+		DEBUG_INFO("JTAG scan found no devices, trying SWD.\n");
+		num_targets = platform_adiv5_swdp_scan(opt->opt_targetid);
+		if (num_targets > 0)
+			goto found_targets;
+		DEBUG_INFO("SW-DP scan failed!\n");
 	}
+
+found_targets:
 	if (!num_targets) {
 		DEBUG_WARN("No target found\n");
 		return -1;

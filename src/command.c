@@ -43,11 +43,11 @@
 #endif
 
 static bool cmd_version(target *t, int argc, char **argv);
-static bool cmd_serial(target *t, int argc, char **argv);
 static bool cmd_help(target *t, int argc, char **argv);
 
 static bool cmd_jtag_scan(target *t, int argc, char **argv);
 static bool cmd_swdp_scan(target *t, int argc, char **argv);
+static bool cmd_auto_scan(target *t, int argc, char **argv);
 static bool cmd_frequency(target *t, int argc, char **argv);
 static bool cmd_targets(target *t, int argc, char **argv);
 static bool cmd_morse(target *t, int argc, char **argv);
@@ -69,10 +69,13 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
 static bool cmd_convert_tdio(target *t, int argc, const char **argv);
-static bool cmd_set_srst(target *t, int argc, const char **argv);
+static bool cmd_set_nrst(target *t, int argc, const char **argv);
 #endif
 #ifdef PLATFORM_HAS_BOOTLOADER
 static bool cmd_enter_bootldr(target *t, int argc, const char **argv);
+#endif
+#ifdef PLATFORM_HAS_PRINTSERIAL
+static bool cmd_serial(target *t, int argc, char **argv);
 #endif
 
 const struct command_s cmd_list[] = {
@@ -83,6 +86,7 @@ const struct command_s cmd_list[] = {
 	{"help", (cmd_handler)cmd_help, "Display help for monitor commands"},
 	{"jtag_scan", (cmd_handler)cmd_jtag_scan, "Scan JTAG chain for devices" },
 	{"swdp_scan", (cmd_handler)cmd_swdp_scan, "Scan SW-DP for devices" },
+	{"auto_scan", (cmd_handler)cmd_auto_scan, "Automatically scan all chain types for devices"},
 	{"frequency", (cmd_handler)cmd_frequency, "set minimum high and low times" },
 	{"targets", (cmd_handler)cmd_targets, "Display list of available targets" },
 	{"morse", (cmd_handler)cmd_morse, "Display morse error message" },
@@ -108,7 +112,7 @@ const struct command_s cmd_list[] = {
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
 	{"convert_tdio", (cmd_handler)cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
-	{"set_srst", (cmd_handler)cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
+	{"set_nrst", (cmd_handler)cmd_set_nrst,"Set output state of NRST pin (enable|disable)"},
 #endif
 #ifdef PLATFORM_HAS_BOOTLOADER
 	{"enter_bootldr", (cmd_handler)cmd_enter_bootldr,"Force BMP into bootloader mode"},
@@ -116,7 +120,7 @@ const struct command_s cmd_list[] = {
 	{NULL, NULL, NULL}
 };
 
-bool connect_assert_srst;
+bool connect_assert_nrst;
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 bool debug_bmp;
 #endif
@@ -200,6 +204,7 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 {
 	(void)t;
 	uint8_t irlens[argc];
+	int devs = -1;
 
 	if (platform_target_voltage())
 		gdb_outf("Target voltage: %s\n", platform_target_voltage());
@@ -211,12 +216,11 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 		irlens[argc-1] = 0;
 	}
 
-	if(connect_assert_srst)
-		platform_srst_set_val(true); /* will be deasserted after attach */
+	if (connect_assert_nrst)
+		platform_nrst_set_val(true); /* will be deasserted after attach */
 
-	int devs = -1;
 	volatile struct exception e;
-	TRY_CATCH (e, EXCEPTION_ALL) {
+	TRY_CATCH(e, EXCEPTION_ALL) {
 #if PC_HOSTED == 1
 		devs = platform_jtag_scan(argc > 1 ? irlens : NULL);
 #else
@@ -233,10 +237,11 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 	}
 
 	if(devs <= 0) {
-		platform_srst_set_val(false);
+		platform_nrst_set_val(false);
 		gdb_out("JTAG device scan failed!\n");
 		return false;
 	}
+
 	cmd_targets(NULL, 0, NULL);
 	morse(NULL, false);
 	return true;
@@ -251,12 +256,12 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 	if (platform_target_voltage())
 		gdb_outf("Target voltage: %s\n", platform_target_voltage());
 
-	if(connect_assert_srst)
-		platform_srst_set_val(true); /* will be deasserted after attach */
+	if (connect_assert_nrst)
+		platform_nrst_set_val(true); /* will be deasserted after attach */
 
 	int devs = -1;
 	volatile struct exception e;
-	TRY_CATCH (e, EXCEPTION_ALL) {
+	TRY_CATCH(e, EXCEPTION_ALL) {
 #if PC_HOSTED == 1
 		devs = platform_adiv5_swdp_scan(targetid);
 #else
@@ -273,7 +278,7 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 	}
 
 	if(devs <= 0) {
-		platform_srst_set_val(false);
+		platform_nrst_set_val(false);
 		gdb_out("SW-DP scan failed!\n");
 		return false;
 	}
@@ -281,7 +286,60 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 	cmd_targets(NULL, 0, NULL);
 	morse(NULL, false);
 	return true;
+}
 
+bool cmd_auto_scan(target *t, int argc, char **argv)
+{
+	static int devs = -1;
+	(void)t;
+	(void)argc;
+	(void)argv;
+
+	if (platform_target_voltage())
+		gdb_outf("Target voltage: %s\n", platform_target_voltage());
+	if (connect_assert_nrst)
+		platform_nrst_set_val(true); /* will be deasserted after attach */
+
+	volatile struct exception e;
+	TRY_CATCH(e, EXCEPTION_ALL) {
+#if PC_HOSTED == 1
+		devs = platform_jtag_scan(NULL);
+#else
+		devs = jtag_scan(NULL);
+#endif
+		if (devs > 0)
+			break;
+		gdb_out("JTAG scan found no devices, trying SWD!\n");
+
+#if PC_HOSTED == 1
+		devs = platform_adiv5_swdp_scan(0);
+#else
+		devs = adiv5_swdp_scan(0);
+#endif
+		if (devs > 0)
+			break;
+
+		platform_nrst_set_val(false);
+		gdb_out("SW-DP scan failed!\n");
+		return false;
+	}
+	switch (e.type) {
+	case EXCEPTION_TIMEOUT:
+		gdb_outf("Timeout during scan. Is target stuck in WFI?\n");
+		break;
+	case EXCEPTION_ERROR:
+		gdb_outf("Exception: %s\n", e.msg);
+		break;
+	}
+	if (devs <= 0) {
+		platform_nrst_set_val(false);
+		gdb_out("auto scan failed!\n");
+		return false;
+	}
+
+	cmd_targets(NULL, 0, NULL);
+	morse(NULL, false);
+	return true;
 }
 
 bool cmd_frequency(target *t, int argc, char **argv)
@@ -376,7 +434,7 @@ static bool cmd_connect_srst(target *t, int argc, const char **argv)
 	if (argc == 1) {
 		print_status = true;
 	} else if (argc == 2) {
-		if (parse_enable_or_disable(argv[1], &connect_assert_srst)) {
+		if (parse_enable_or_disable(argv[1], &connect_assert_nrst)) {
 			print_status = true;
 		}
 	} else {
@@ -384,8 +442,8 @@ static bool cmd_connect_srst(target *t, int argc, const char **argv)
 	}
 
 	if (print_status) {
-		gdb_outf("Assert SRST during connect: %s\n",
-			 connect_assert_srst ? "enabled" : "disabled");
+		gdb_outf("Assert nRST during connect: %s\n",
+			 connect_assert_nrst ? "enabled" : "disabled");
 	}
 	return true;
 }
@@ -406,8 +464,8 @@ static bool cmd_hard_srst(target *t, int argc, const char **argv)
 	(void)argc;
 	(void)argv;
 	target_list_free();
-	platform_srst_set_val(true);
-	platform_srst_set_val(false);
+	platform_nrst_set_val(true);
+	platform_nrst_set_val(false);
 	return true;
 }
 
@@ -620,16 +678,16 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 	return true;
 }
 
-static bool cmd_set_srst(target *t, int argc, const char **argv)
+static bool cmd_set_nrst(target *t, int argc, const char **argv)
 {
 	(void) t;
 
 	uint8_t val;
 	if (argc > 1) {
 		val = (!strcmp(argv[1], "enable")) ? true : false;
-		platform_srst_set_val(val);
+		platform_nrst_set_val(val);
 	} else {
-		gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
+		gdb_outf("nRST: %s\n",(platform_nrst_get_val()) ?
 				"enabled" : "disabled");
 	}
 
@@ -651,7 +709,7 @@ static bool cmd_enter_bootldr(target *t, int argc, const char **argv)
 #endif
 
 #ifdef PLATFORM_HAS_PRINTSERIAL
-bool cmd_serial(target *t, int argc, char **argv)
+static bool cmd_serial(target *t, int argc, char **argv)
 {
 	(void) t;
 	(void) argc;

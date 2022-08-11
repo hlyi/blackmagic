@@ -378,8 +378,25 @@ bool cortexm_probe(ADIv5_AP_t *ap)
 	} else {
 		target_check_error(t);
 	}
+#if PC_HOSTED
+#define STRINGIFY(x) #x
 #define PROBE(x) \
-	do { if ((x)(t)) {return true;} else target_check_error(t); } while (0)
+	do { \
+		DEBUG_INFO("Calling " STRINGIFY(x) "\n"); \
+		if ((x)(t)) \
+			return true; \
+		else \
+			target_check_error(t); \
+	} while (0)
+#else
+#define PROBE(x) \
+	do { \
+		if ((x)(t)) \
+			return true; \
+		else \
+			target_check_error(t); \
+	} while (0)
+#endif
 
 	switch (ap->ap_designer) {
 	case AP_DESIGNER_FREESCALE:
@@ -506,7 +523,7 @@ bool cortexm_attach(target *t)
 	priv->flash_patch_revision = (r >> 28);
 	priv->hw_watchpoint_max = CORTEXM_MAX_WATCHPOINTS;
 	r = target_mem_read32(t, CORTEXM_DWT_CTRL);
-	if ((r >> 28) > priv->hw_watchpoint_max)
+	if ((r >> 28) < priv->hw_watchpoint_max)
 		priv->hw_watchpoint_max = r >> 28;
 
 	/* Clear any stale breakpoints */
@@ -528,7 +545,7 @@ bool cortexm_attach(target *t)
 	uint32_t dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
 	dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
 	if (dhcsr & CORTEXM_DHCSR_S_RESET_ST) {
-		platform_srst_set_val(false);
+		platform_nrst_set_val(false);
 		platform_timeout timeout;
 		platform_timeout_set(&timeout, 1000);
 		while (1) {
@@ -536,7 +553,7 @@ bool cortexm_attach(target *t)
 			if (!(dhcsr & CORTEXM_DHCSR_S_RESET_ST))
 				break;
 			if (platform_timeout_is_expired(&timeout)) {
-				DEBUG_WARN("Error releasing from srst\n");
+				DEBUG_WARN("Error releasing from reset\n");
 				return false;
 			}
 		}
@@ -679,7 +696,7 @@ static int dcrsr_regnum(target *t, unsigned reg)
 		return regnum_cortex_m[reg];
 	} else if ((t->target_options & TOPT_FLAVOUR_V7MF) &&
 	           (reg < (sizeof(regnum_cortex_m) +
-	                   sizeof(regnum_cortex_mf) / 4))) {
+	                   sizeof(regnum_cortex_mf)) / 4)) {
 		return regnum_cortex_mf[reg - sizeof(regnum_cortex_m)/4];
 	} else {
 		return -1;
@@ -726,15 +743,15 @@ static void cortexm_reset(target *t)
 	target_mem_read32(t, CORTEXM_DHCSR);
 	platform_timeout to;
 	if ((t->target_options & CORTEXM_TOPT_INHIBIT_SRST) == 0) {
-		platform_srst_set_val(true);
-		platform_srst_set_val(false);
+		platform_nrst_set_val(true);
+		platform_nrst_set_val(false);
 		/* Some NRF52840 users saw invalid SWD transaction with
 		 * native/firmware without this delay.*/
 		platform_delay(10);
 	}
 	uint32_t dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
 	if ((dhcsr & CORTEXM_DHCSR_S_RESET_ST) == 0) {
-		/* No reset seen yet, maybe as SRST is not connected, or device has
+		/* No reset seen yet, maybe as nRST is not connected, or device has
          * CORTEXM_TOPT_INHIBIT_SRST set.
 		 * Trigger reset by AIRCR.*/
 		target_mem_write32(t, CORTEXM_AIRCR,

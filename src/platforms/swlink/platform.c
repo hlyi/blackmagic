@@ -93,7 +93,7 @@ void platform_init(void)
 					  GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO8);
 		break;
 	}
-	platform_srst_set_val(false);
+	platform_nrst_set_val(false);
 
 	/* Remap TIM2 TIM2_REMAP[1]
 	 * TIM2_CH1_ETR -> PA15 (TDI, set as output above)
@@ -113,27 +113,27 @@ void platform_init(void)
 	usbuart_init();
 }
 
-void platform_srst_set_val(bool assert)
+void platform_nrst_set_val(bool assert)
 {
-	/* We reuse JSRST as SRST.*/
+	/* We reuse nTRST as nRST.*/
 	if (assert) {
-		gpio_set_mode(JRST_PORT, GPIO_MODE_OUTPUT_2_MHZ,
-		              GPIO_CNF_OUTPUT_OPENDRAIN, JRST_PIN);
+		gpio_set_mode(TRST_PORT, GPIO_MODE_OUTPUT_2_MHZ,
+		              GPIO_CNF_OUTPUT_OPENDRAIN, TRST_PIN);
 		/* Wait until requested value is active.*/
-		while (gpio_get(JRST_PORT, JRST_PIN))
-			gpio_clear(JRST_PORT, JRST_PIN);
+		while (gpio_get(TRST_PORT, TRST_PIN))
+			gpio_clear(TRST_PORT, TRST_PIN);
 	} else {
-		gpio_set_mode(JRST_PORT, GPIO_MODE_INPUT,
-					  GPIO_CNF_INPUT_PULL_UPDOWN, JRST_PIN);
+		gpio_set_mode(TRST_PORT, GPIO_MODE_INPUT,
+					  GPIO_CNF_INPUT_PULL_UPDOWN, TRST_PIN);
 		/* Wait until requested value is active.*/
-		while (!gpio_get(JRST_PORT, JRST_PIN))
-			gpio_set(JRST_PORT, JRST_PIN);
+		while (!gpio_get(TRST_PORT, TRST_PIN))
+			gpio_set(TRST_PORT, TRST_PIN);
 	}
 }
 
-bool platform_srst_get_val(void)
+bool platform_nrst_get_val(void)
 {
-	return gpio_get(JRST_PORT, JRST_PIN) == 0;
+	return gpio_get(TRST_PORT, TRST_PIN) == 0;
 }
 
 static void adc_init(void)

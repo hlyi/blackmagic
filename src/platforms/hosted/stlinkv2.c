@@ -40,7 +40,7 @@
 #include <ctype.h>
 #include <sys/time.h>
 
-#include "cl_utils.h"
+#include "cli.h"
 
 #define STLINK_SWIM_ERR_OK             0x00
 #define STLINK_SWIM_BUSY               0x01
@@ -190,7 +190,7 @@ typedef struct {
 	libusb_context* libusb_ctx;
 	uint16_t     vid;
 	uint16_t     pid;
-	bool         srst;
+	bool         nrst;
 	uint8_t      dap_select;
 	uint8_t      ep_tx;
 	uint8_t      ver_hw;     /* 20, 21 or 31 deciphered from USB PID.*/
@@ -211,6 +211,7 @@ static int stlink_usb_get_rw_status(bool verbose);
 int debug_level = 0;
 
 #define STLINK_ERROR_DP_FAULT -2
+#define STLINK_ERROR_AP_FAULT -3
 
 /**
     Converts an STLINK status code held in the first byte of a response to
@@ -273,7 +274,7 @@ static int stlink_usb_error_check(uint8_t *data, bool verbose)
 			Stlink.ap_error = true;
 			if (verbose)
 				DEBUG_WARN("STLINK_SWD_AP_FAULT\n");
-			return STLINK_ERROR_DP_FAULT;
+			return STLINK_ERROR_AP_FAULT;
 		case STLINK_SWD_AP_ERROR:
 			if (verbose)
 				DEBUG_WARN("STLINK_SWD_AP_ERROR\n");
@@ -331,17 +332,27 @@ static int stlink_send_recv_retry(uint8_t *txbuf, size_t txsize,
 					 uint8_t *rxbuf, size_t rxsize)
 {
 	uint32_t start = platform_time_ms();
-	int res;
+	int res, first_res = STLINK_ERROR_OK;
 	usb_link_t *link = info.usb_link;
 	while(1) {
 		send_recv(link, txbuf, txsize, rxbuf, rxsize);
 		res = stlink_usb_error_check(rxbuf, false);
 		if (res == STLINK_ERROR_OK)
 			return res;
+		if ((res == STLINK_ERROR_AP_FAULT) && (first_res == STLINK_ERROR_WAIT)) {
+			/* STLINKV3 while AP is busy answers once with ERROR_WAIT, then
+			 * with AP_FAULT and finally with ERROR_OK and the pending result.
+			 * Interpret AP_FAULT as AP_WAIT in this case.
+			 */
+			Stlink.ap_error = false;
+			res = STLINK_ERROR_WAIT;
+		}
+		if (first_res == STLINK_ERROR_OK)
+			first_res = res;
 		uint32_t now = platform_time_ms();
 		if (((now - start) > cortexm_wait_timeout) ||
 			(res != STLINK_ERROR_WAIT)) {
-			DEBUG_WARN("write_retry failed. ");
+			DEBUG_WARN("send_recv_retry failed. ");
 			return res;
 		}
 	}
@@ -630,21 +641,21 @@ int stlink_init(bmp_info_t *info)
 	return 0;
 }
 
-void stlink_srst_set_val(bmp_info_t *info, bool assert)
+void stlink_nrst_set_val(bmp_info_t *info, bool assert)
 {
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_DRIVE_NRST,
 					  (assert)? STLINK_DEBUG_APIV2_DRIVE_NRST_LOW
 					  : STLINK_DEBUG_APIV2_DRIVE_NRST_HIGH};
 	uint8_t data[2];
-	Stlink.srst = assert;
+	Stlink.nrst = assert;
 	send_recv(info->usb_link, cmd, 16, data, 2);
 	stlink_usb_error_check(data, true);
 }
 
-bool stlink_srst_get_val(void)
+bool stlink_nrst_get_val(void)
 {
-	return Stlink.srst;
+	return Stlink.nrst;
 }
 
 int stlink_hwversion(void)
