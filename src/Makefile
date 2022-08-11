@@ -123,7 +123,7 @@ ifndef PC_HOSTED
 	$(Q)$(OBJCOPY) -O ihex $^ $@
 endif
 
-.PHONY:	clean host_clean all_platforms FORCE
+.PHONY:	clean host_clean all_platforms clang-format FORCE
 
 clean:	host_clean
 	$(Q)echo "  CLEAN"
@@ -185,5 +185,8 @@ else
 		echo '$(VERSION_HEADER)' > $@; \
 	fi
 endif
+
+clang-format:
+	$(Q)clang-format -i *.c */*.c */*/*.c *.h */*.h */*/*.h
 
 -include *.d
