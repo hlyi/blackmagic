@@ -82,11 +82,6 @@ ifeq (,$(filter all_platforms,$(MAKECMDGOALS)))
 include $(PLATFORM_DIR)/Makefile.inc
 endif
 
-ifneq ($(PC_HOSTED),1)
-# Output memory usage information
-LDFLAGS += -Wl,--print-memory-usage
-endif
-
 OPT_FLAGS ?= -Os
 CFLAGS += $(OPT_FLAGS)
 LDFLAGS += $(OPT_FLAGS)
