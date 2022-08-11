@@ -236,6 +236,16 @@ void platform_delay(uint32_t ms)
 	while (!platform_timeout_is_expired(&timeout));
 }
 
+uint32_t platform_target_voltage_sense(void)
+{
+	uint32_t val;
+	adc_start();
+
+	while (!(1&(ADC->intflag)));
+	val = ((485*adc_result())>>12); /* 330 without divider, 485 with it */
+	return val;
+}
+
 const char *platform_target_voltage(void)
 {
 	uint32_t voltage;
@@ -243,8 +253,7 @@ const char *platform_target_voltage(void)
 
 	adc_start();
 
-	while (!(1&(ADC->intflag)));
-	voltage = ((485*adc_result())>>12); /* 330 without divider, 485 with it */
+	voltage = platform_target_voltage_sense();
 
 	out[0] = '0' + (char)(voltage/100);
 	out[2] = '0' + (char)((voltage/10) % 10);
