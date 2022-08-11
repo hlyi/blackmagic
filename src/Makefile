@@ -169,11 +169,8 @@ all_platforms:
 
 command.c: include/version.h
 
-GIT_VERSION := $(shell git describe --always --dirty --tags)
-VERSION_HEADER := \#define FIRMWARE_VERSION "$(GIT_VERSION)"
-
 include/version.h: FORCE
-	$(Q)echo " GIT include/version.h"
-	$(Q)echo "#define FIRMWARE_VERSION \"$(shell git describe --always --dirty --tags)\"" > $@
+	@echo " GEN $@"
+	$(Q)../scripts/gen-version.sh
 
 -include *.d
