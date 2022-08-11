@@ -24,15 +24,15 @@ jobs:
       # Use embedded toolchain
       - uses: numworks/setup-arm-toolchain@2020-q4
 
-      # Run some of the most common build types
-      - name: Build native fw
-        run: make
+      # Build all the firmwares
+      - name: Build all platform firmwares and BMP only BMPA
+        run: make all_platforms HOSTED_BMP_ONLY=1
 
       - name: Clean
         run: make clean
 
-      - name: Install BMP PC hosted dependencies
+      - name: Install BMDA dependencies
         run: sudo apt-get -y install libftdi1-dev libhidapi-dev
 
-      - name: Build PC hosted binary
-        run: make PROBE_HOST=hosted 
+      - name: Build full BMDA binary
+        run: make PROBE_HOST=hosted
