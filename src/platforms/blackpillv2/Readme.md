@@ -26,17 +26,17 @@ https://github.com/WeActTC/MiniSTM32F4x1
 ```sh
 cd blackmagic
 make clean
-make PROBE_HOST=blackpill
+make PROBE_HOST=blackpillv2
 ```
 
 ## How to Flash with dfu
 
 * After build:
   * 1) `apt install dfu-util`
-  * 2) Force the F4 into system bootloader mode by jumpering "BOOT0" to "3V3" and "PB2/BOOT1" to "GND" and reset (RESET button). System bootloader should appear.
+  * 2) Force the F4 into system bootloader mode by keeping BOOT0 button pressed while pressing and releasing NRST button. System bootloader should appear.
   * 3) `dfu-util -a 0 --dfuse-address 0x08000000 -D blackmagic.bin`
 
-To exit from dfu mode press a "key" and "reset", release reset. BMP firmware should appear
+To exit from dfu mode just press and release NRST. The newly Flashed BMP firmware should boot and enumerate.
 
 ## 10 pin male from pins
 
