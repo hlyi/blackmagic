@@ -48,7 +48,7 @@ all:	blackmagic_full.bin blackmagic.bin blackmagic_dfu.bin blackmagic_dfu.hex
 blackmagic_dfu.bin : OBJCOPY_FLAGS := --pad-to 0x00002000 --gap-fill 0xFF -j .text -j .data
 blackmagic_dfu.bin : LINKER_SCRIPT := "platforms/samd/samd_boot.ld"
 
-blackmagic_dfu: usbdfu.o
+blackmagic_dfu.elf: usbdfu.o
 	@echo "  LD      $@"
 	$(Q)$(CC) $^ -o $@ $(LDFLAGS)
 

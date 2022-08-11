@@ -252,8 +252,11 @@ const char *platform_target_voltage(void)
 	return out;
 }
 
-char *serialno_read(char *s)
+char *serial_no_read(char *s, int max)
 {
+	if (max >= 8)
+		max = 8;
+
 #ifdef CUSTOM_SER
 	s[0] = 'J';
 	s[1] = 'E';
@@ -266,13 +269,13 @@ char *serialno_read(char *s)
 		*(volatile uint32_t *)0x0080A040 +
 		*(volatile uint32_t *)0x0080A044 +
 		*(volatile uint32_t *)0x0080A048;
-
+	
         /* Fetch serial number from chip's unique ID */
-        for(i = 0; i < 8; i++) {
+        for(i = 0; i < max; i++) {
                 s[7-i] = ((unique_id >> (4*i)) & 0xF) + '0';
         }
 
-        for(i = 0; i < 8; i++)
+        for(i = 0; i < max; i++)
                 if(s[i] > '9')
                         s[i] += 'A' - '9' - 1;
 	s[8] = 0;
