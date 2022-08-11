@@ -47,11 +47,10 @@ uint32_t platform_time_ms(void)
 	return time_ms;
 }
 
-void
-platform_init(void)
+void platform_init(void)
 {
-	int i;
-	for(i=0; i<1000000; i++);
+	for (int i = 0; i < 1000000; ++i)
+		continue;
 
 	rcc_sysclk_config(OSCSRC_MOSC, XTAL_16M, PLL_DIV_80MHZ);
 
@@ -85,8 +84,7 @@ platform_init(void)
 	cdcacm_init();
 
 	usb_enable_interrupts(USB_INT_RESET | USB_INT_DISCON |
-	                      USB_INT_RESUME | USB_INT_SUSPEND,
-	                      0xff, 0xff);
+		USB_INT_RESUME | USB_INT_SUSPEND, 0xff, 0xff);
 }
 
 void platform_nrst_set_val(bool assert)
@@ -121,23 +119,18 @@ char *serial_no_read(char *s)
 {
 	/* FIXME: Store a unique serial number somewhere and retreive here */
 	uint32_t unique_id = SERIAL_NO;
-        int i;
 
-        /* Fetch serial number from chip's unique ID */
-        for(i = 0; i < 8; i++) {
-                s[7-i] = ((unique_id >> (4*i)) & 0xF) + '0';
-        }
-        for(i = 0; i < DFU_SERIAL_LENGTH - 1; i++)
-                if(s[i] > '9')
-                        s[i] += 'A' - '9' - 1;
+	/* Fetch serial number from chip's unique ID */
+	for (size_t i = 0; i < DFU_SERIAL_LENGTH - 1; i++) {
+		s[7U - i] = ((unique_id >> (4 * i)) & 0x0FU) + '0';
+		if (s[7U - i] > '9')
+			s[7U - i] += 7; /* 'A' - '9' = 8, less 1 gives 7. */
+	}
 	s[DFU_SERIAL_LENGTH - 1] = 0;
-
 	return s;
 }
 
-void platform_request_boot(void)
-{
-}
+void platform_request_boot(void) { }
 
 void platform_max_frequency_set(uint32_t freq)
 {

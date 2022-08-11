@@ -60,19 +60,19 @@ typedef struct cable_desc_s {
 	/* Bus data to allow bitbanging switched SWD write.
 	 * TMS is routed to MPSSE_CS.*/
 	pin_settings_t bb_swd_write;
-	/* dbus_data, dbus_ddr, cbus_data, cbus_ddr value to assert SRST.
+	/* dbus_data, dbus_ddr, cbus_data, cbus_ddr value to assert nRST.
 	 *	E.g. with CBUS Pin 1 low,
 	 *	give data_high = ~PIN1, ddr_high = PIN1 */
-	data_desc_t assert_srst;
-	/*  Bus_data, dbus_ddr, cbus_data, cbus_ddr value to release SRST.
+	data_desc_t assert_nrst;
+	/*  Bus_data, dbus_ddr, cbus_data, cbus_ddr value to release nRST.
 	 *	E.g. with CBUS Pin 1 floating with internal pull up,
 	 *	give data_high = PIN1, ddr_high = ~PIN1 */
-	data_desc_t deassert_srst;
-	/* Command to read back SRST. If 0, port from assert_srst is used*/
-	uint8_t srst_get_port_cmd;
-	/* PIN to read back as SRST. if 0 port from assert_srst is ised.
+	data_desc_t deassert_nrst;
+	/* Command to read back NRST. If 0, port from assert_nrst is used*/
+	uint8_t nrst_get_port_cmd;
+	/* PIN to read back as NRST. if 0 port from assert_nrst is ised.
 	*  Use PINX if active high, use Complement (~PINX) if active low*/
-	uint8_t srst_get_pin;
+	uint8_t nrst_get_pin;
 	/* Bbus data for pure MPSSE SWD read.
 	 * Use together with swd_write if by some bits on DBUS,
 	 * SWDIO can be routed to TDI and TDO.
@@ -102,18 +102,18 @@ typedef struct cable_desc_s {
 #if HOSTED_BMP_ONLY == 1
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wunused-parameter"
-int ftdi_bmp_init(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info) {return -1;};
-int libftdi_swdptap_init(ADIv5_DP_t *dp) {return -1;};
-int libftdi_jtagtap_init(jtag_proc_t *jtag_proc) {return 0;};
-void libftdi_buffer_flush(void) {};
-int libftdi_buffer_write(const uint8_t *data, int size) {return size;};
-int libftdi_buffer_read(uint8_t *data, int size) {return size;};
-const char *libftdi_target_voltage(void) {return "ERROR";};
+int ftdi_bmp_init(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info) { return -1; }
+int libftdi_swdptap_init(ADIv5_DP_t *dp) { return -1; }
+int libftdi_jtagtap_init(jtag_proc_t *jtag_proc) { return 0; }
+void libftdi_buffer_flush(void) { }
+int libftdi_buffer_write(const uint8_t *data, int size) { return size; }
+int libftdi_buffer_read(uint8_t *data, int size) { return size; }
+const char *libftdi_target_voltage(void) { return "ERROR"; }
 void libftdi_jtagtap_tdi_tdo_seq(
-	uint8_t *DO, const uint8_t final_tms, const uint8_t *DI, int ticks) {};
-bool  libftdi_swd_possible(bool *do_mpsse, bool *direct_bb_swd) {return false;};
-void libftdi_max_frequency_set(uint32_t freq) {};
-uint32_t libftdi_max_frequency_get(void) {return 0;};
+	uint8_t *DO, const uint8_t final_tms, const uint8_t *DI, int ticks) { }
+bool  libftdi_swd_possible(bool *do_mpsse, bool *direct_bb_swd) { return false; }
+void libftdi_max_frequency_set(uint32_t freq) { }
+uint32_t libftdi_max_frequency_get(void) { return 0; }
 void libftdi_nrst_set_val(bool assert) { }
 bool libftdi_nrst_get_val(void) { return false; }
 # pragma GCC diagnostic pop
