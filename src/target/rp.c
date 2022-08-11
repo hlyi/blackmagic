@@ -33,7 +33,7 @@
  */
 
 /* This file implements Raspberry Pico (RP2040) target specific functions
- * for detecting the device, providing the XML memory map but not yet
+ * for detecting the device, providing the XML memory map and
  * Flash memory programming.
  */
 
@@ -43,10 +43,14 @@
 #include "cortexm.h"
 
 #define RP_ID "Raspberry RP2040"
+#define RP_MAX_TABLE_SIZE  0x80
 #define BOOTROM_MAGIC ('M' | ('u' << 8) | (0x01 << 16))
 #define BOOTROM_MAGIC_ADDR 0x00000010
 #define XIP_FLASH_START    0x10000000
 #define SRAM_START         0x20000000
+#define SRAM_SIZE          0x42000
+#define SSI_DR0_ADDR       0x18000060
+#define QSPI_CTRL_ADDR     0x4001800c
 
 #define FLASHSIZE_4K_SECTOR     (4 * 1024)
 #define FLASHSIZE_32K_BLOCK     (32 * 1024)
@@ -57,7 +61,7 @@
  * original Pico board from Raspberry Pi.
  * https://www.winbond.com/resource-files/w25q16jv%20spi%20revd%2008122016.pdf
  * All dev boards supported by Pico SDK V1.3.1 use SPI flash chips which support
- * these commands. Other customs boards using different SPI flash chips might
+ * these commands. Other custom boards using different SPI flash chips might
  * not support these commands
  */ 
 
@@ -65,7 +69,7 @@
 #define FLASHCMD_BLOCK32K_ERASE 0x52
 #define FLASHCMD_BLOCK64K_ERASE 0xd8
 #define FLASHCMD_CHIP_ERASE     0x60
-#define FLASHCMD_READ_ID        0x9F
+#define FLASHCMD_READ_JEDEC_ID  0x9F
 
 struct rp_priv_s {
 	uint16_t _debug_trampoline;
@@ -216,22 +220,22 @@ static void rp_flash_resume(target *t)
 static int rp_flash_erase(struct target_flash *f, target_addr addr,
 						  size_t len)
 {
+	DEBUG_INFO("Erase addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, (uint32_t)len);
+	target *t = f->t;
 	if (addr & (FLASHSIZE_4K_SECTOR - 1)) {
 		DEBUG_WARN("Unaligned erase\n");
 		return -1;
 	}
-	if (len & (FLASHSIZE_4K_SECTOR - 1)) {
-		DEBUG_WARN("Unaligned len\n");
-		len = ALIGN(len, FLASHSIZE_4K_SECTOR);
+	if ((addr < t->flash->start) || (addr >= t->flash->start + t->flash->length)) {
+		DEBUG_WARN("Address is invalid\n");
+		return -1;
 	}
-	DEBUG_INFO("Erase addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, (uint32_t)len);
-	target *t = f->t;
-	rp_flash_prepare(t);
-	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
-	/* Register playground*/
-	/* erase */
 	addr -= t->flash->start;
-	len = MIN(len, t->flash->length);
+	len = ALIGN(len, FLASHSIZE_4K_SECTOR);
+	len = MIN(len, t->flash->length - addr);
+	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
+	/* erase */
+	rp_flash_prepare(t);
 	bool ret = 0;
 	while (len) {
 		if (len >= FLASHSIZE_64K_BLOCK) {
@@ -277,15 +281,15 @@ static int rp_flash_write(struct target_flash *f,
                     target_addr dest, const void *src, size_t len)
 {
 	DEBUG_INFO("RP Write 0x%08" PRIx32 " len 0x%" PRIx32 "\n", dest, (uint32_t)len);
+	target *t = f->t;
 	if ((dest & 0xff) || (len & 0xff)) {
-		DEBUG_WARN("Unaligned erase\n");
+		DEBUG_WARN("Unaligned write\n");
 		return -1;
 	}
-	target *t = f->t;
-	rp_flash_prepare(t);
+	dest -= t->flash->start;
 	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
 	/* Write payload to target ram */
-	dest -= XIP_FLASH_START;
+	rp_flash_prepare(t);
 	bool ret = 0;
 #define MAX_WRITE_CHUNK 0x1000
 	while (len) {
@@ -367,7 +371,7 @@ static bool rp_cmd_erase_sector(target *t, int argc, const char *argv[])
 
 const struct command_s rp_cmd_list[] = {
 	{"erase_mass", rp_cmd_erase_mass, "Erase entire flash memory"},
-	{"erase_sector", rp_cmd_erase_sector, "Erase a sector by number" },
+	{"erase_sector", rp_cmd_erase_sector, "Erase a sector: [start address] length" },
 	{"reset_usb_boot", rp_cmd_reset_usb_boot, "Reboot the device into BOOTSEL mode"},
 	{NULL, NULL, NULL}
 };
@@ -385,8 +389,115 @@ static void rp_add_flash(target *t, uint32_t addr, size_t length)
         f->blocksize = 0x1000;
         f->erase = rp_flash_erase;
         f->write = rp_flash_write;
-        f->buf_size = 2048; /* Max buffer size used eotherwise */
+        f->buf_size = 2048; /* Max buffer size used otherwise */
+		f->erased = 0xFF;
         target_add_flash(t, f);
+}
+
+void rp_ssel_active(target *t, bool active)
+{
+	const uint32_t qspi_ctrl_outover_low  = 2UL << 8;
+	const uint32_t qspi_ctrl_outover_high = 3UL << 8;
+	uint32_t state = (active) ? qspi_ctrl_outover_low : qspi_ctrl_outover_high;
+	uint32_t val = target_mem_read32(t, QSPI_CTRL_ADDR);
+	val = (val & ~qspi_ctrl_outover_high) | state;
+	target_mem_write32(t, QSPI_CTRL_ADDR, val);
+}
+
+uint32_t rp_read_flash_chip(target *t, uint32_t cmd)
+{
+	uint32_t value = 0;
+
+	rp_ssel_active(t, true);
+
+	/* write command into SPI peripheral's FIFO */
+	for (size_t i = 0; i < 4; i++)
+		target_mem_write32(t, SSI_DR0_ADDR, cmd);
+
+	/* now we have an entry in the receive FIFO for each write */
+	for (size_t i = 0; i < 4; i++) {
+		uint32_t status = target_mem_read32(t, SSI_DR0_ADDR);
+		value |= (status & 0xFF) << 24;
+		value >>= 8;
+	}
+
+	rp_ssel_active(t, false);
+
+	return value;
+}
+
+uint32_t rp_get_flash_length(target *t)
+{
+	uint32_t size = MAX_FLASH;
+	uint32_t bootsec[16];
+	size_t i;
+
+	target_mem_read(t, bootsec, XIP_FLASH_START, sizeof(bootsec));
+	for (i = 0; i < 16; i++) {
+		if ((bootsec[i] != 0x00) && (bootsec[i] != 0xff))
+			break;
+	}
+
+	if (i < 16) {
+		// We have some data (hopefully a valid program) stored in the start
+		// of the flash memory. We can check if the start of this data is
+		// mirrored anywhere else in the flash as the flash region will repeat
+		// when we try to read out of bounds.
+		uint32_t mirrorsec[16];
+		while (size > FLASHSIZE_4K_SECTOR) {
+			target_mem_read(t, mirrorsec, XIP_FLASH_START + size, sizeof(bootsec));
+			if (memcmp(bootsec, mirrorsec, sizeof(bootsec)))
+				return size << 1;
+			size >>= 1;
+		}
+	}
+
+	// That approach didn't work. Most likely because there was no data found in
+	// at the start of the flash memory. If we have no valid program it's ok to
+	// interrupt the flash execution to check the JEDEC ID of the flash chip.
+	size = MAX_FLASH;
+
+	rp_flash_prepare(t);
+	uint32_t flash_id = rp_read_flash_chip(t, FLASHCMD_READ_JEDEC_ID);
+	rp_flash_resume(t);
+
+	DEBUG_INFO("Flash device ID: %08" PRIx32 "\n", flash_id);
+
+	uint8_t size_log2 = (flash_id & 0xff0000) >> 16;
+	if (size_log2 >= 8 || size_log2 <= 34)
+		size = 1 << size_log2;
+
+	return size;
+}
+
+static bool rp_attach(target *t)
+{
+	if (!cortexm_attach(t))
+		return false;
+
+	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
+	uint16_t *table =  alloca(RP_MAX_TABLE_SIZE);
+	uint16_t table_offset = target_mem_read32( t, BOOTROM_MAGIC_ADDR + 4);
+	if (!table || target_mem_read(t, table, table_offset, RP_MAX_TABLE_SIZE))
+		return false;
+	if (rp2040_fill_table(ps, table, RP_MAX_TABLE_SIZE))
+		return false;
+
+	/* Free previously loaded memory map */
+	target_mem_map_free(t);
+
+	size_t size = rp_get_flash_length(t);
+	DEBUG_INFO("Flash size: %zu MB\n", size / (1024U * 1024U));
+
+	rp_add_flash(t, XIP_FLASH_START, size);
+	target_add_ram(t, SRAM_START, SRAM_SIZE);
+
+	return true;
+}
+
+static void rp_detach(target *t)
+{
+	cortexm_detach(t);
 }
 
 bool rp_probe(target *t)
@@ -401,26 +512,17 @@ bool rp_probe(target *t)
 	if ((boot_magic >> 24) == 1)
 		DEBUG_WARN("Old Bootrom Version 1!\n");
 #endif
-#define RP_MAX_TABLE_SIZE  0x80
-	uint16_t *table =  alloca(RP_MAX_TABLE_SIZE);
-	uint16_t table_offset = target_mem_read32( t, BOOTROM_MAGIC_ADDR + 4);
-	if (!table || target_mem_read(t, table, table_offset, RP_MAX_TABLE_SIZE))
-		return false;
 	struct rp_priv_s *priv_storage = calloc(1, sizeof(struct rp_priv_s));
 	if (!priv_storage) {               /* calloc failed: heap exhaustion */
 		DEBUG_WARN("calloc: failed in %s\n", __func__);
 		return false;
 	}
-	if (rp2040_fill_table(priv_storage, table, RP_MAX_TABLE_SIZE)) {
-		free(priv_storage);
-		return false;
-	}
  	t->target_storage = (void*)priv_storage;
 
-	rp_add_flash(t, XIP_FLASH_START, MAX_FLASH);
 	t->driver = RP_ID;
 	t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
-	target_add_ram(t, SRAM_START, 0x42000);
+	t->attach = rp_attach;
+	t->detach = rp_detach;
 	target_add_commands(t, rp_cmd_list, RP_ID);
 	return true;
 }
