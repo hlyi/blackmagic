@@ -19,72 +19,10 @@
  */
 #include "general.h"
 
-static uint8_t olddir = 0;
-
-static inline void swdptap_set_out(void)
-{
-	/* Don't turnaround if direction not changing */
-	if(0 == olddir) return;
-	olddir = 0;
-
-#ifdef DEBUG_SWD_BITS
-	DEBUG("%s", dir ? "\n-> ":"\n<- ");
-#endif
-
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	SWDIO_MODE_DRIVE();
-}
-
-
-static inline void swdptap_set_in(void)
-{
-	/* Don't turnaround if direction not changing */
-	if(1 == olddir) return;
-	olddir = 1;
-
-#ifdef DEBUG_SWD_BITS
-	DEBUG("%s", dir ? "\n-> ":"\n<- ");
-#endif
-
-	SWDIO_MODE_FLOAT();
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-}
-
-static inline bool swdptap_bit_in(void)
-{
-	uint16_t ret;
-
-	ret = gpio_get(SWDIO_PORT, SWDIO_PIN);
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-
-#ifdef DEBUG_SWD_BITS
-	DEBUG("%d", ret?1:0);
-#endif
-
-	return ret != 0;
-}
-
-static inline void swdptap_bit_out(bool val)
-{
-#ifdef DEBUG_SWD_BITS
-	DEBUG("%d", val);
-#endif
-
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, val);
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-}
-
-uint32_t __attribute__((weak))
-swdptap_seq_in(int ticks)
+uint32_t swdptap_seq_in(int ticks)
 {
 	uint32_t index = 1;
 	uint32_t ret = 0;
-
-	swdptap_set_in();
 
 	while (ticks--) {
 		if (swdptap_bit_in())
@@ -101,8 +39,6 @@ bool swdptap_seq_in_parity(uint32_t *ret, int ticks)
 	uint8_t parity = 0;
 	*ret = 0;
 
-	swdptap_set_in();
-
 	while (ticks--) {
 		if (swdptap_bit_in()) {
 			*ret |= index;
@@ -118,8 +54,6 @@ bool swdptap_seq_in_parity(uint32_t *ret, int ticks)
 
 void swdptap_seq_out(uint32_t MS, int ticks)
 {
-	swdptap_set_out();
-
 	while (ticks--) {
 		swdptap_bit_out(MS & 1U);
 		MS >>= 1U;
@@ -130,8 +64,6 @@ void swdptap_seq_out_parity(uint32_t MS, int ticks)
 {
 	uint8_t parity = 0;
 
-	swdptap_set_out();
-
 	while (ticks--) {
 		swdptap_bit_out(MS & 1U);
 		parity ^= MS;
@@ -140,14 +72,3 @@ void swdptap_seq_out_parity(uint32_t MS, int ticks)
 	swdptap_bit_out(parity & 1U);
 }
 
-swd_proc_t swd_proc;
-
-int swdptap_init(void)
-{
-	swd_proc.swdptap_seq_in  = swdptap_seq_in;
-	swd_proc.swdptap_seq_in_parity  = swdptap_seq_in_parity;
-	swd_proc.swdptap_seq_out = swdptap_seq_out;
-	swd_proc.swdptap_seq_out_parity  = swdptap_seq_out_parity;
-
-	return 0;
-}

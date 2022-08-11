@@ -2,7 +2,6 @@ CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
-NO_OWN_LL = 1
 OPT_FLAGS := -Os
 
 ifeq ($(ENABLE_DEBUG), 1)
@@ -16,6 +15,10 @@ endif
 
 ifeq ($(CONSOLE_NO_AUTO_CRLF), 1)
 CFLAGS += -DCONSOLE_NO_AUTO_CRLF
+endif
+
+ifeq ($(ENABLE_DEBUG), 1)
+CFLAGS += -g3 -ggdb
 endif
 
 CFLAGS += -mthumb -mcpu=cortex-m0plus \
