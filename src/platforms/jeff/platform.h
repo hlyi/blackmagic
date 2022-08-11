@@ -47,6 +47,7 @@
 #define PLATFORM_IDENT          " "
 
 extern uint8_t running_status;
+extern uint32_t swd_delay_cnt;
 
 #ifdef DEBUG_ME
 
