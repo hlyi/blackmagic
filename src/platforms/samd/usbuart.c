@@ -55,6 +55,7 @@ struct {
         volatile size_t head, tail;
 } rx, tx;
 
+#ifndef ENABLE_RTT
 /* non blocking putc function */
 static void usart_putc(char c)
 {
@@ -74,6 +75,7 @@ static void usart_putc(char c)
 	/* kick the transmitter to restart interrupts */
 	usart_enable_tx_interrupt(USART_NUM);
 }
+#endif
 
 void usbuart_init(void)
 {
@@ -161,6 +163,7 @@ void usbuart_set_line_coding(struct usb_cdc_line_coding *coding)
 	current_baud = coding->dwDTERate;
 }
 
+#ifndef ENABLE_RTT
 void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 {
 	(void)ep;
@@ -175,6 +178,7 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 	}
 	gpio_clear(LED_PORT_UART, LED_UART);
 }
+#endif
 
 /* run by our systick timer */
 void uart_pop(void)
