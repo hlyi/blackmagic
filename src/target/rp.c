@@ -48,6 +48,25 @@
 #define XIP_FLASH_START    0x10000000
 #define SRAM_START         0x20000000
 
+#define FLASHSIZE_4K_SECTOR     (4 * 1024)
+#define FLASHSIZE_32K_BLOCK     (32 * 1024)
+#define FLASHSIZE_64K_BLOCK     (64 * 1024)
+#define MAX_FLASH               (16 * 1024 * 1024)
+
+/* Instruction codes taken from Winbond W25Q16JV datasheet, as used on the
+ * original Pico board from Raspberry Pi.
+ * https://www.winbond.com/resource-files/w25q16jv%20spi%20revd%2008122016.pdf
+ * All dev boards supported by Pico SDK V1.3.1 use SPI flash chips which support
+ * these commands. Other customs boards using different SPI flash chips might
+ * not support these commands
+ */ 
+
+#define FLASHCMD_SECTOR_ERASE   0x20
+#define FLASHCMD_BLOCK32K_ERASE 0x52
+#define FLASHCMD_BLOCK64K_ERASE 0xd8
+#define FLASHCMD_CHIP_ERASE     0x60
+#define FLASHCMD_READ_ID        0x9F
+
 struct rp_priv_s {
 	uint16_t _debug_trampoline;
 	uint16_t _debug_trampoline_end;
@@ -197,59 +216,50 @@ static void rp_flash_resume(target *t)
 static int rp_flash_erase(struct target_flash *f, target_addr addr,
 						  size_t len)
 {
-	if (addr & 0xfff) {
+	if (addr & (FLASHSIZE_4K_SECTOR - 1)) {
 		DEBUG_WARN("Unaligned erase\n");
 		return -1;
 	}
-	if (len & 0xfff) {
+	if (len & (FLASHSIZE_4K_SECTOR - 1)) {
 		DEBUG_WARN("Unaligned len\n");
-		len = (len + 0xfff) & ~0xfff;
+		len = ALIGN(len, FLASHSIZE_4K_SECTOR);
 	}
-	DEBUG_INFO("Erase addr %08" PRIx32 " len 0x%" PRIx32 "\n", addr, (uint32_t)len);
+	DEBUG_INFO("Erase addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, (uint32_t)len);
 	target *t = f->t;
 	rp_flash_prepare(t);
 	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
 	/* Register playground*/
 	/* erase */
-#define MAX_FLASH               (16 * 1024 * 1024)
-#define FLASHCMD_SECTOR_ERASE   0x20
-#define FLASHCMD_BLOCK32K_ERASE 0x52
-#define FLASHCMD_BLOCK64K_ERASE 0xd8
-#define FLASHCMD_CHIP_ERASE     0x72
-	addr -= XIP_FLASH_START;
-	if (len > MAX_FLASH)
-		len = MAX_FLASH;
+	addr -= t->flash->start;
+	len = MIN(len, t->flash->length);
 	bool ret = 0;
 	while (len) {
-		ps->regs[0] = addr;
-		ps->regs[2] = -1;
-		if (len >= MAX_FLASH) { /* Bulk erase */
-			ps->regs[1] = MAX_FLASH;
-			ps->regs[3] = FLASHCMD_CHIP_ERASE;
-			DEBUG_WARN("BULK_ERASE\n");
-			ret = rp_rom_call(t, ps->regs, ps->_flash_range_erase, 25100);
-			len = 0;
-		} else if (len >= (64 * 1024)) {
-			uint32_t chunk = len & ~((1 << 16) - 1);
+		if (len >= FLASHSIZE_64K_BLOCK) {
+			uint32_t chunk = len & ~(FLASHSIZE_64K_BLOCK - 1);
+			ps->regs[0] = addr;
 			ps->regs[1] = chunk;
+			ps->regs[2] = FLASHSIZE_64K_BLOCK;
 			ps->regs[3] = FLASHCMD_BLOCK64K_ERASE;
-			DEBUG_WARN("64k_ERASE\n");
-			ret = rp_rom_call(t, ps->regs, ps->_flash_range_erase, 2100);
+			DEBUG_WARN("64k_ERASE addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, chunk);
+			ret = rp_rom_call(t, ps->regs, ps->_flash_range_erase, 25100);
 			len -= chunk ;
 			addr += chunk;
-		} else if (len >= (32 * 1024)) {
-			uint32_t chunk = len & ~((1 << 15) - 1);
+		} else if (len >= FLASHSIZE_32K_BLOCK) {
+			uint32_t chunk = len & ~(FLASHSIZE_32K_BLOCK - 1);
+			ps->regs[0] = addr;
 			ps->regs[1] = chunk;
+			ps->regs[2] = FLASHSIZE_32K_BLOCK;
 			ps->regs[3] = FLASHCMD_BLOCK32K_ERASE;
-			DEBUG_WARN("32k_ERASE\n");
+			DEBUG_WARN("32k_ERASE addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, chunk);
 			ret = rp_rom_call(t, ps->regs, ps->_flash_range_erase, 1700);
 			len -= chunk;
 			addr += chunk;
 		} else {
+			ps->regs[0] = addr;
 			ps->regs[1] = len;
-			ps->regs[2] = MAX_FLASH;
+			ps->regs[2] = FLASHSIZE_4K_SECTOR;
 			ps->regs[3] = FLASHCMD_SECTOR_ERASE;
-			DEBUG_WARN("Sector_ERASE\n");
+			DEBUG_WARN("Sector_ERASE addr 0x%08" PRIx32 " len 0x%" PRIx32 "\n", addr, (uint32_t)len);
 			ret = rp_rom_call(t, ps->regs, ps->_flash_range_erase, 410);
 			len = 0;
 		}
@@ -266,7 +276,7 @@ static int rp_flash_erase(struct target_flash *f, target_addr addr,
 static int rp_flash_write(struct target_flash *f,
                     target_addr dest, const void *src, size_t len)
 {
-	DEBUG_INFO("RP Write %08" PRIx32 " len 0x%" PRIx32 "\n", dest, (uint32_t)len);
+	DEBUG_INFO("RP Write 0x%08" PRIx32 " len 0x%" PRIx32 "\n", dest, (uint32_t)len);
 	if ((dest & 0xff) || (len & 0xff)) {
 		DEBUG_WARN("Unaligned erase\n");
 		return -1;
@@ -327,13 +337,37 @@ static bool rp_cmd_erase_mass(target *t, int argc, const char *argv[])
 	f.t = t;
 	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
 	ps->is_monitor = true;
-	bool res =  (rp_flash_erase(&f, XIP_FLASH_START, MAX_FLASH)) ? false: true;
+	bool res =  (rp_flash_erase(&f, t->flash->start, t->flash->length)) ? false: true;
+	ps->is_monitor = false;
+	return res;
+}
+
+static bool rp_cmd_erase_sector(target *t, int argc, const char *argv[])
+{
+	uint32_t length = t->flash->length;
+	uint32_t start = t->flash->start;
+
+	if (argc == 3) {
+		start = strtoul(argv[1], NULL, 0);
+		length = strtoul(argv[2], NULL, 0);
+	}
+	else if (argc == 2)
+		length = strtoul(argv[1], NULL, 0);
+	else
+		return -1;
+
+	struct target_flash f;
+	f.t = t;
+	struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
+	ps->is_monitor = true;
+	bool res =  (rp_flash_erase(&f, start, length)) ? false: true;
 	ps->is_monitor = false;
 	return res;
 }
 
 const struct command_s rp_cmd_list[] = {
 	{"erase_mass", rp_cmd_erase_mass, "Erase entire flash memory"},
+	{"erase_sector", rp_cmd_erase_sector, "Erase a sector by number" },
 	{"reset_usb_boot", rp_cmd_reset_usb_boot, "Reboot the device into BOOTSEL mode"},
 	{NULL, NULL, NULL}
 };
@@ -360,7 +394,7 @@ bool rp_probe(target *t)
 	/* Check bootrom magic*/
 	uint32_t boot_magic = target_mem_read32(t, BOOTROM_MAGIC_ADDR);
 	if ((boot_magic & 0x00ffffff) != BOOTROM_MAGIC) {
-		DEBUG_WARN("Wrong Bootmagic %08" PRIx32 " found\n!", boot_magic);
+		DEBUG_WARN("Wrong Bootmagic %08" PRIx32 " found!\n", boot_magic);
 		return false;
 	}
 #if defined(ENABLE_DEBUG)
@@ -382,34 +416,11 @@ bool rp_probe(target *t)
 		return false;
 	}
  	t->target_storage = (void*)priv_storage;
-	uint32_t bootsec[16];
-	target_mem_read( t, bootsec, XIP_FLASH_START, sizeof( bootsec));
-	int i;
-	for (i = 0; i < 16; i++)
-		if (bootsec[i])
-			break;
-	uint32_t size = 8 * 1024 *1024;
-	if (i == 16) {
-		DEBUG_WARN("Use default size\n");
-	} else {
-		/* Find out size of connected SPI Flash
-		 *
-		 * Flash needs valid content to be mapped
-		 * Low flash is mirrored when flash size is exceeded
-		 */
-		while (size) {
-			uint32_t mirrorsec[16];
-			target_mem_read(t, mirrorsec, XIP_FLASH_START + size,
-							sizeof( bootsec));
-			if (memcmp(bootsec, mirrorsec, sizeof( bootsec)))
-				break;
-			size >>= 1;
-		}
-	}
-	rp_add_flash(t, XIP_FLASH_START, size << 1);
+
+	rp_add_flash(t, XIP_FLASH_START, MAX_FLASH);
 	t->driver = RP_ID;
+	t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
 	target_add_ram(t, SRAM_START, 0x42000);
-	target_add_ram(t, 0x51000000,  0x1000);
 	target_add_commands(t, rp_cmd_list, RP_ID);
 	return true;
 }
