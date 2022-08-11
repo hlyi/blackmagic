@@ -1,16 +1,33 @@
-# Firmware BMP for STM32F407 DISCO boards
+# Firmware BMP for STM32F401/stm32f411 MiniF4 aka BlackPillV2 boards
 
-Allows the use of the STM32F407 Discovery board main cpu as a Black Magic Probe. Historically it was used to program the on board built in debugger before ST-Link bootloader use was possible.
+Allows the use of BlackPillV2 as a Black Magic Probe
+
+https://github.com/WeActTC/MiniSTM32F4x1
 
 ## Connections:
 
-PC2: TDI<br>
-PC4: TMS/SWDIO<br>
-PC5: TCK/SWCLK<br>
-PC6: TDO/TRACESWO<br>
+* JTAG/SWD
+   * PA1: TDI
+   * PA13: TMS/SWDIO
+   * PA14: TCK/SWCLK
+   * PB3: TDO/TRACESWO
+   * PB5: TRST
+   * PB4: SRST
 
-PC1: TRST<br>
-PC8: SRST<br>
+* USB USART
+   * PB6: USART1 TX (usbuart_xxx)
+   * PB7: USART1 RX (usbuart_xxx)
+
+* +3V3.
+   * PB8 - turn on IRLML5103 transistor
+
+How to Build
+========================================
+```
+cd blackmagic
+make clean
+make PROBE_HOST=blackpill
+```
 
 How to Flash with dfu
 ========================================
