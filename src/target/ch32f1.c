@@ -241,17 +241,16 @@ int ch32f1_flash_erase (struct target_flash *f,  target_addr addr, size_t len)
 			NB: Just reading fff is not enough as it could be a transient previous operation value
 */
 
-static bool ch32f1_wait_flash_ready(target *t,uint32_t adr)
+static bool ch32f1_wait_flash_ready(target *t, uint32_t adr)
 {
-  uint32_t ff;
-  for(int i = 0; i < 32; i++) {
-	  ff = target_mem_read32(t,adr);
-  }  
-  if(ff != 0xffffffffUL) {
-	  ERROR_CH("ch32f1 Not erased properly at %x or flash access issue\n",adr);
-	  return false;
-  }
-  return true;
+	uint32_t ff;
+	for (int i = 0; i < 32; i++)
+		ff = target_mem_read32(t, adr);
+	if (ff != 0xffffffffUL) {
+		ERROR_CH("ch32f1 Not erased properly at %" PRIx32 " or flash access issue\n", adr);
+		return false;
+	}
+	return true;
 }
 /**
   \fn ch32f1_flash_write
@@ -282,12 +281,12 @@ static int ch32f1_upload(target *t, uint32_t dest, const void  *src, uint32_t of
 */
 int ch32f1_buffer_clear(target *t)
 {
-  volatile uint32_t ct,sr;
-  SET_CR(FLASH_CR_FTPG_CH32); // Fast page program 4-
-  SET_CR(FLASH_CR_BUF_RESET_CH32); // BUF_RESET 5-
-  WAIT_BUSY(); // 6-
-  CLEAR_CR(FLASH_CR_FTPG_CH32); // Fast page program 4-
-  return 0;
+	volatile uint32_t ct,sr;
+	SET_CR(FLASH_CR_FTPG_CH32); // Fast page program 4-
+	SET_CR(FLASH_CR_BUF_RESET_CH32); // BUF_RESET 5-
+	WAIT_BUSY(); // 6-
+	CLEAR_CR(FLASH_CR_FTPG_CH32); // Fast page program 4-
+	return 0;
 }
 //#define CH32_VERIFY
 
@@ -338,9 +337,9 @@ static int ch32f1_flash_write(struct target_flash *f,
 
 		// next
 		if(length > 128)
-		  length -=128;
+			length -=128;
 		else
-		  length = 0;
+			length = 0;
 		dest += 128;
 		src += 128;
 

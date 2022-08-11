@@ -129,8 +129,10 @@ int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
 			cable_desc_t *cable = cable_desc;
 			DEBUG_WARN("Available cables:\n");
 			for (; cable->name; ++cable) {
-				DEBUG_WARN("\t%s\n", cable->name);
+				DEBUG_WARN("\t%s%c\n", cable->name, cable->description ? ' ' : '*');
 			}
+			DEBUG_WARN("*: No auto-detection possible!"
+					   " Give cable name as argument!\n");
 			exit(0);
 		}
 		info->bmp_type = BMP_TYPE_LIBFTDI;
@@ -329,7 +331,7 @@ rescan:
 		} else
 			++found_debuggers;
 	}
-	if (found_debuggers == 0 && ftdi_unknown)
+	if (found_debuggers == 0 && ftdi_unknown && !cl_opts->opt_cable)
 		DEBUG_WARN("Generic FTDI MPSSE VID/PID found. Please specify exact type with \"-c <cable>\" !\n");
 	if (found_debuggers == 1 && !cl_opts->opt_cable && info->bmp_type == BMP_TYPE_LIBFTDI)
 		cl_opts->opt_cable = active_cable;
