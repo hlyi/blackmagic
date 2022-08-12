@@ -114,7 +114,27 @@ ifdef RTT_IDENT
 CFLAGS += -DRTT_IDENT=$(RTT_IDENT)
 endif
 
+ifeq ($(ENABLE_RTT), 1)
+CFLAGS += -DENABLE_RTT
+SRC += rtt.c rtt_if.c
+endif
+
+ifdef RTT_IDENT
+CFLAGS += -DRTT_IDENT=$(RTT_IDENT)
+endif
+
 OBJ = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SRC)))
+
+OPTIMIZE := swdptap.o jtagtap.o \
+	    adiv5_jtagdp.o adiv5_swdp.o adiv5.o \
+	    cortexa.o cortexm.o \
+	    gdb_if.o gdb_main.o gdb_hostio.o gdb_packet.o \
+	    jtag_devs.o jtag_scan.o \
+	    crc32.o main.o \
+	    cdcacm.o jeff.o timing.o traceswo.o usbuart.o \
+
+$(OPTIMIZE)::        CFLAGS := $(filter-out -Os, $(CFLAGS))
+$(OPTIMIZE)::        CFLAGS += -O3
 
 $(TARGET): include/version.h $(OBJ)
 	@echo "  LD      $@"
