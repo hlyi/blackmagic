@@ -20,8 +20,7 @@
 
 #include "general.h"
 #include "gdb_if.h"
-#include "cdcacm.h"
-#include "usbuart.h"
+#include "usb_serial.h"
 #include "gdb_packet.h"
 
 #include <libopencm3/sam/d/nvic.h>

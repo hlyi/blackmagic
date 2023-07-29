@@ -681,7 +681,9 @@ static bool cmd_heapinfo(target_s *t, int argc, const char **argv)
 	return true;
 }
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
-static bool cmd_convert_tdio(target *t, int argc, const char **argv)
+/*
+   //FIXME
+static bool cmd_convert_tdio(target_s *t, int argc, const char **argv)
 {
         (void)t;
 
@@ -697,25 +699,28 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 	return true;
 }
 
-static bool cmd_set_srst(target *t, int argc, const char **argv)
+static bool cmd_set_nrst(target_s *t, int argc, const char **argv)
 {
 	(void) t;
 
 	uint8_t val;
 	if (argc > 1) {
 		val = (!strcmp(argv[1], "enable")) ? true : false;
-		platform_srst_set_val(val);
+		platform_nrst_set_val(val);
 	} else {
-		gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
+		gdb_outf("SRST: %s\n",(platform_nrst_get_val()) ?
 				"enabled" : "disabled");
 	}
 
 	return true;
 }
+*/
 #endif
 
 #ifdef PLATFORM_HAS_BOOTLOADER
-static bool cmd_enter_bootldr(target *t, int argc, const char **argv)
+/*
+// FIXME
+static bool cmd_enter_bootldr(target_s *t, int argc, const char **argv)
 {
 	(void) t;
 	(void) argc;
@@ -725,6 +730,7 @@ static bool cmd_enter_bootldr(target *t, int argc, const char **argv)
 
 	return true;
 }
+*/
 #endif
 
 #ifdef PLATFORM_HAS_PRINTSERIAL

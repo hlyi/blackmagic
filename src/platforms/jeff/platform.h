@@ -24,7 +24,7 @@
 #include <libopencm3/sam/d/port.h>
 #include <libopencm3/usb/usbd.h>
 #include <libopencm3/cm3/scb.h>
-#include <libopencm3/sam/d/nvmctrl.h>
+//#include <libopencm3/sam/d/nvmctrl.h>
 
 #include "timing.h"
 #include "version.h"

@@ -23,29 +23,45 @@
  * uses the USB CDC-ACM device bulk endpoints to implement the channel.
  */
 
+#include <libopencmsis/core_cm3.h>
+
 #include "general.h"
+#include "usb_serial.h"
 #include "gdb_if.h"
-#include "cdcacm.h"
 
-#include <libopencm3/usb/usbd.h>
+static uint32_t count_out;
+static uint32_t count_in;
+static uint32_t out_ptr;
+static char buffer_out[CDCACM_PACKET_SIZE];
+static char buffer_in[CDCACM_PACKET_SIZE];
 
-static volatile uint32_t head_out, tail_out;
-static volatile uint32_t count_in;
-static volatile uint8_t buffer_out[16*CDCACM_PACKET_SIZE];
-static volatile uint8_t buffer_in[CDCACM_PACKET_SIZE];
+static volatile uint32_t count_new;
+static char double_buffer_out[CDCACM_PACKET_SIZE];
 
-void gdb_if_putchar(unsigned char c, int flush)
+void gdb_if_putchar(const char c, const int flush)
 {
 	buffer_in[count_in++] = c;
-	if(flush || (count_in == CDCACM_PACKET_SIZE)) {
+	if (flush || count_in == CDCACM_PACKET_SIZE) {
 		/* Refuse to send if USB isn't configured, and
 		 * don't bother if nobody's listening */
-		if((cdcacm_get_config() != 1) || !cdcacm_get_dtr()) {
+		if (usb_get_config() != 1 || !gdb_serial_get_dtr()) {
 			count_in = 0;
 			return;
 		}
-		while(usbd_ep_write_packet(usbdev, CDCACM_GDB_ENDPOINT,
-			(uint8_t *)buffer_in, count_in) <= 0);
+		while (usbd_ep_write_packet(usbdev, CDCACM_GDB_ENDPOINT, buffer_in, count_in) <= 0)
+			continue;
+
+		if (flush && count_in == CDCACM_PACKET_SIZE) {
+			/* We need to send an empty packet for some hosts
+			 * to accept this as a complete transfer. */
+			/* libopencm3 needs a change for us to confirm when
+			 * that transfer is complete, so we just send a packet
+			 * containing a null byte for now.
+			 */
+			while (usbd_ep_write_packet(usbdev, CDCACM_GDB_ENDPOINT, "\0", 1) <= 0)
+				continue;
+		}
+
 		count_in = 0;
 	}
 }
@@ -53,51 +69,72 @@ void gdb_if_putchar(unsigned char c, int flush)
 void gdb_usb_out_cb(usbd_device *dev, uint8_t ep)
 {
 	(void)ep;
-	static uint8_t buf[CDCACM_PACKET_SIZE];
-
 	usbd_ep_nak_set(dev, CDCACM_GDB_ENDPOINT, 1);
-        uint32_t count = usbd_ep_read_packet(dev, CDCACM_GDB_ENDPOINT,
-                                        (uint8_t *)buf, CDCACM_PACKET_SIZE);
-
-
-	uint32_t idx;
-	for (idx=0; idx<count; idx++) {
-		buffer_out[head_out++ % sizeof(buffer_out)] = buf[idx];
-	}
-
-	usbd_ep_nak_set(dev, CDCACM_GDB_ENDPOINT, 0);
+	count_new = usbd_ep_read_packet(dev, CDCACM_GDB_ENDPOINT, double_buffer_out, CDCACM_PACKET_SIZE);
+	if (!count_new)
+		usbd_ep_nak_set(dev, CDCACM_GDB_ENDPOINT, 0);
 }
 
-unsigned char gdb_if_getchar(void)
+
+static void gdb_if_update_buf(void)
 {
-
-	while(tail_out == head_out) {
-		/* Detach if port closed */
-		if(!cdcacm_get_dtr())
-			return 0x04;
-
-		while(cdcacm_get_config() != 1);
+	while (usb_get_config() != 1)
+		continue;
+	__asm__ volatile("cpsid i; isb");
+	if (count_new) {
+		memcpy(buffer_out, double_buffer_out, count_new);
+		count_out = count_new;
+		count_new = 0;
+		out_ptr = 0;
+		usbd_ep_nak_set(usbdev, CDCACM_GDB_ENDPOINT, 0);
 	}
-
-	return buffer_out[tail_out++ % sizeof(buffer_out)];
+	__asm__ volatile("cpsie i; isb");
+	if (!count_out)
+		__WFI();
 }
 
-unsigned char gdb_if_getchar_to(int timeout)
+char gdb_if_getchar(void)
 {
-	platform_timeout t;
-	platform_timeout_set(&t, timeout);
+	while (out_ptr >= count_out) {
+		/*
+		 * Detach if port closed
+		 *
+		 * The WFI here is safe because any interrupt, including the regular SysTick
+		 * will cause the processor to resume from the WFI instruction.
+		 */
+		if (!gdb_serial_get_dtr()) {
+			__WFI();
+			return '\x04';
+		}
 
-	if(head_out == tail_out) do {
-		/* Detach if port closed */
-		if(!cdcacm_get_dtr())
-			return 0x04;
+		gdb_if_update_buf();
+	}
 
-		while(cdcacm_get_config() != 1);
-	} while(!platform_timeout_is_expired(&t) && head_out == tail_out);
+	return buffer_out[out_ptr++];
+}
 
-	if(head_out != tail_out)
-		return gdb_if_getchar();
+char gdb_if_getchar_to(const uint32_t timeout)
+{
+	platform_timeout_s receive_timeout;
+	platform_timeout_set(&receive_timeout, timeout);
 
+	/* Wait while we need more data or until the timeout expires */
+	while (out_ptr >= count_out && !platform_timeout_is_expired(&receive_timeout)) {
+		/*
+		 * Detach if port closed
+		 *
+		 * The WFI here is safe because any interrupt, including the regular SysTick
+		 * will cause the processor to resume from the WFI instruction.
+		 */
+		if (!gdb_serial_get_dtr()) {
+			__WFI();
+			return '\x04';
+		}
+		gdb_if_update_buf();
+	}
+
+	if (out_ptr < count_out)
+		return buffer_out[out_ptr++];
+	/* XXX: Need to find a better way to error return than this. This provides '\xff' characters. */
 	return -1;
 }
-
