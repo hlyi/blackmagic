@@ -30,31 +30,6 @@
 #include "target_internal.h"
 
 uint8_t make_packet_request(uint8_t RnW, uint16_t addr)
-#define SWDP_ACK_OK    0x01
-#define SWDP_ACK_WAIT  0x02
-#define SWDP_ACK_FAULT 0x04
-
-static uint32_t adiv5_swdp_read(ADIv5_DP_t *dp, uint16_t addr);
-
-static uint32_t adiv5_swdp_error(ADIv5_DP_t *dp);
-
-static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
-				      uint16_t addr, uint32_t value);
-
-static void adiv5_swdp_abort(ADIv5_DP_t *dp, uint32_t abort);
-
-static inline void swdptap_bit_out(bool val)
-{
-#ifdef DEBUG_SWD_BITS
-	DEBUG("%d", val);
-#endif
-
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, val);
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-}
-
-int adiv5_swdp_scan(void)
 {
 	bool APnDP = addr & ADIV5_APnDP;
 

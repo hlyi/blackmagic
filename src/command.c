@@ -118,66 +118,6 @@ const command_s cmd_list[] = {
 
 bool connect_assert_nrst;
 #if defined(PLATFORM_HAS_DEBUG) && PC_HOSTED == 0
-static bool cmd_version(void);
-static bool cmd_serial(void);
-static bool cmd_help(target *t);
-
-static bool cmd_jtag_scan(target *t, int argc, char **argv);
-static bool cmd_swdp_scan(void);
-static bool cmd_targets(void);
-static bool cmd_morse(void);
-static bool cmd_connect_srst(target *t, int argc, const char **argv);
-static bool cmd_hard_srst(void);
-#ifdef PLATFORM_HAS_POWER_SWITCH
-static bool cmd_target_power(target *t, int argc, const char **argv);
-#endif
-#ifdef PLATFORM_HAS_TRACESWO
-static bool cmd_traceswo(void);
-#endif
-#ifdef PLATFORM_HAS_DEBUG
-static bool cmd_debug_bmp(target *t, int argc, const char **argv);
-#endif
-#ifdef PLATFORM_HAS_UART_WHEN_SWDP
-static bool cmd_convert_tdio(target *t, int argc, const char **argv);
-static bool cmd_set_srst(target *t, int argc, const char **argv);
-#endif
-#ifdef PLATFORM_HAS_BOOTLOADER
-static bool cmd_enter_bootldr(target *t, int argc, const char **argv);
-#endif
-
-const struct command_s cmd_list[] = {
-	{"version", (cmd_handler)cmd_version, "Display firmware version info"},
-#ifdef PLATFORM_HAS_PRINTSERIAL
-	{"serial", (cmd_handler)cmd_serial, "Display firmware serial number"},
-#endif
-	{"help", (cmd_handler)cmd_help, "Display help for monitor commands"},
-	{"jtag_scan", (cmd_handler)cmd_jtag_scan, "Scan JTAG chain for devices" },
-	{"swdp_scan", (cmd_handler)cmd_swdp_scan, "Scan SW-DP for devices" },
-	{"targets", (cmd_handler)cmd_targets, "Display list of available targets" },
-	{"morse", (cmd_handler)cmd_morse, "Display morse error message" },
-	{"connect_srst", (cmd_handler)cmd_connect_srst, "Configure connect under SRST: (enable|disable)" },
-	{"hard_srst", (cmd_handler)cmd_hard_srst, "Force a pulse on the hard SRST line - disconnects target" },
-#ifdef PLATFORM_HAS_POWER_SWITCH
-	{"tpwr", (cmd_handler)cmd_target_power, "Supplies power to the target: (enable|disable)"},
-#endif
-#ifdef PLATFORM_HAS_TRACESWO
-	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture" },
-#endif
-#ifdef PLATFORM_HAS_DEBUG
-	{"debug_bmp", (cmd_handler)cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
-#endif
-#ifdef PLATFORM_HAS_UART_WHEN_SWDP
-	{"convert_tdio", (cmd_handler)cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
-	{"set_srst", (cmd_handler)cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
-#endif
-#ifdef PLATFORM_HAS_BOOTLOADER
-	{"enter_bootldr", (cmd_handler)cmd_enter_bootldr,"Force BMP into bootloader mode"},
-#endif
-	{NULL, NULL, NULL}
-};
-
-static bool connect_assert_srst;
-#ifdef PLATFORM_HAS_DEBUG
 bool debug_bmp;
 #endif
 unsigned cortexm_wait_timeout = 2000; /* Timeout to wait for Cortex to react on halt command. */
