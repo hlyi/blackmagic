@@ -19,7 +19,7 @@ ifeq (filter, macosx darwin, $(SYS))
 CFLAGS += -Wmaybe-uninitialized -Wstringop-overflow -Wunsafe-loop-optimizations
 endif
 CFLAGS += -Wall -Wextra -Werror -Wno-char-subscripts\
-	$(OPT_FLAGS) -std=gnu99 -MD \
+	$(OPT_FLAGS) \
 	-I. -Iinclude -Iplatforms/common -I$(PLATFORM_DIR)
 LDFLAGS += $(OPT_FLAGS)
 
@@ -82,6 +82,11 @@ ifeq (,$(filter all_platforms,$(MAKECMDGOALS)))
 include $(PLATFORM_DIR)/Makefile.inc
 endif
 
+ifneq ($(PC_HOSTED),1)
+# Output memory usage information
+LDFLAGS += -Wl,--print-memory-usage
+endif
+
 OPT_FLAGS ?= -Os
 CFLAGS += $(OPT_FLAGS)
 LDFLAGS += $(OPT_FLAGS)
@@ -114,17 +119,9 @@ ifdef RTT_IDENT
 CFLAGS += -DRTT_IDENT=$(RTT_IDENT)
 endif
 
-ifeq ($(ENABLE_RTT), 1)
-CFLAGS += -DENABLE_RTT
-SRC += rtt.c rtt_if.c
-endif
-
-ifdef RTT_IDENT
-CFLAGS += -DRTT_IDENT=$(RTT_IDENT)
-endif
-
 OBJ = $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SRC)))
 
+ifdef OPTIMIZE
 OPTIMIZE := swdptap.o jtagtap.o \
 	    adiv5_jtagdp.o adiv5_swdp.o adiv5.o \
 	    cortexa.o cortexm.o \
@@ -135,6 +132,7 @@ OPTIMIZE := swdptap.o jtagtap.o \
 
 $(OPTIMIZE)::        CFLAGS := $(filter-out -Os, $(CFLAGS))
 $(OPTIMIZE)::        CFLAGS += -O3
+endif
 
 $(TARGET): include/version.h $(OBJ)
 	@echo "  LD      $@"
