@@ -66,7 +66,7 @@ static void usb_serial_set_state(usbd_device *dev, uint16_t iface, uint8_t ep);
 static void debug_serial_send_callback(usbd_device *dev, uint8_t ep);
 static void debug_serial_receive_callback(usbd_device *dev, uint8_t ep);
 
-#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4) || defined(SAMD)
 static bool debug_serial_send_complete = true;
 #endif
 
@@ -233,7 +233,7 @@ static bool debug_serial_fifo_buffer_empty(void)
 }
 #endif
 
-#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4) || defined(SAMD)
 /*
  * Runs deferred processing for AUX serial RX, draining RX FIFO by sending
  * characters to host PC via the debug serial interface.
@@ -309,7 +309,7 @@ static void debug_serial_receive_callback(usbd_device *dev, uint8_t ep)
 
 	aux_serial_send(len);
 
-#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4) || defined(SAMD)
 	/* Disable USBUART TX packet reception if buffer does not have enough space */
 	if (AUX_UART_BUFFER_SIZE - aux_serial_transmit_buffer_fullness() < CDCACM_PACKET_SIZE)
 		usbd_ep_nak_set(dev, ep, 1);

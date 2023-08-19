@@ -159,7 +159,7 @@ extern uint32_t swd_delay_cnt;
 #endif
 
 #define TMS_SET_MODE()	{ \
-	gpio_config_output(TMS_PORT, TMS_PIN, 0); \
+	gpio_mode_setup(TMS_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, TMS_PIN); \
 	gpio_set(TMS_PORT, TMS_DIR_PIN); \
 }
 

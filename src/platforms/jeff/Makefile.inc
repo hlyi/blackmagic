@@ -22,7 +22,7 @@ CFLAGS += -g3 -ggdb
 endif
 
 CFLAGS += -mthumb -mcpu=cortex-m0plus \
-	-DSAMD -DSAMD21E17 -DBLACKMAGIC -I../libopencm3/include \
+	-DSAMD -DSAMD21E17 -I../libopencm3/include \
 	-Iplatforms/samd -msoft-float -ffunction-sections -fdata-sections -MD
 
 LINKER_SCRIPT="platforms/samd/samd.ld"
@@ -41,7 +41,7 @@ VPATH += platforms/samd
 SRC +=	\
 	timing.c        \
 	traceswo.o      \
-	usbuart.c       \
+
 
 all:	blackmagic.bin
 

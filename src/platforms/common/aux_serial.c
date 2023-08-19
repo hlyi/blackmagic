@@ -26,6 +26,9 @@
 #elif defined(LM4F)
 #include <libopencm3/lm4f/rcc.h>
 #include <libopencm3/lm4f/uart.h>
+#elif defined(SAMD)
+#include <libopencm3/sam/uart.h>
+#include <libopencm3/sam/usart.h>
 #else
 #error "Unknown processor target"
 #endif
@@ -37,11 +40,11 @@
 #include "usb_serial.h"
 #include "aux_serial.h"
 
-static char aux_serial_receive_buffer[AUX_UART_BUFFER_SIZE];
+// FIXME static char aux_serial_receive_buffer[AUX_UART_BUFFER_SIZE];
 /* Fifo in pointer, writes assumed to be atomic, should be only incremented within RX ISR */
-static uint8_t aux_serial_receive_write_index = 0;
+// FIXME static uint8_t aux_serial_receive_write_index = 0;
 /* Fifo out pointer, writes assumed to be atomic, should be only incremented outside RX ISR */
-static uint8_t aux_serial_receive_read_index = 0;
+// FIXME static uint8_t aux_serial_receive_read_index = 0;
 
 #if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4)
 static char aux_serial_transmit_buffer[2U][AUX_UART_BUFFER_SIZE];
@@ -206,11 +209,16 @@ void aux_serial_init(void)
 	//nvic_set_priority(USBUSART_IRQ, IRQ_PRI_USBUSART);
 	nvic_enable_irq(USBUART_IRQ);
 }
+#elif defined(SAMD)
+void aux_serial_init(void)
+{
+	// FIXME
+}
 #endif
 
 void aux_serial_set_encoding(usb_cdc_line_coding_s *coding)
 {
-	usart_set_baudrate(USBUSART, coding->dwDTERate);
+//FIXME	usart_set_baudrate(USBUSART, coding->dwDTERate);
 
 #if defined(STM32F0) || defined(STM32F1) || defined(STM32F3) || defined(STM32F4)
 	if (coding->bParityType)
@@ -219,31 +227,33 @@ void aux_serial_set_encoding(usb_cdc_line_coding_s *coding)
 		usart_set_databits(USBUSART, coding->bDataBits <= 8U ? 8 : 9);
 #elif defined(LM4F)
 	uart_set_databits(USBUART, coding->bDataBits);
+#elif defined(SAMD)
+	// FIXME
 #endif
 
 	switch (coding->bCharFormat) {
 	case 0:
-		usart_set_stopbits(USBUSART, USART_STOPBITS_1);
+//FIXME		usart_set_stopbits(USBUSART, USART_STOPBITS_1);
 		break;
 	case 1:
-		usart_set_stopbits(USBUSART, USART_STOPBITS_1_5);
+//FIXME		usart_set_stopbits(USBUSART, USART_STOPBITS_1_5);
 		break;
 	case 2:
 	default:
-		usart_set_stopbits(USBUSART, USART_STOPBITS_2);
+//FIXME		usart_set_stopbits(USBUSART, USART_STOPBITS_2);
 		break;
 	}
 
 	switch (coding->bParityType) {
 	case 0:
-		usart_set_parity(USBUSART, USART_PARITY_NONE);
+//FIXME		usart_set_parity(USBUSART, USART_PARITY_NONE);
 		break;
 	case 1:
-		usart_set_parity(USBUSART, USART_PARITY_ODD);
+//FIXME		usart_set_parity(USBUSART, USART_PARITY_ODD);
 		break;
 	case 2:
 	default:
-		usart_set_parity(USBUSART, USART_PARITY_EVEN);
+//FIXME		usart_set_parity(USBUSART, USART_PARITY_EVEN);
 		break;
 	}
 }

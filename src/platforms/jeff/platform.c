@@ -82,8 +82,8 @@ static void usb_setup(void)
 	set_periph_clk(GCLK0, GCLK_ID_USB);
 	periph_clk_en(GCLK_ID_USB, 1);
 
-	gpio_config_special(PORTA, GPIO24, SOC_GPIO_PERIPH_G);
-	gpio_config_special(PORTA, GPIO25, SOC_GPIO_PERIPH_G);
+	gpio_set_af(PORTA, PORT_PMUX_FUN_G, GPIO24);
+	gpio_set_af(PORTA, PORT_PMUX_FUN_G, GPIO25);
 
 }
 
@@ -101,8 +101,8 @@ static uint32_t timing_init(void)
 
 static void adc_init(void)
 {
-	gpio_config_special(ADC_PORT, ADC_POS_PIN, SOC_GPIO_PERIPH_B); /* +input */
-	gpio_config_special(ADC_PORT, ADC_REF_PIN, SOC_GPIO_PERIPH_B); /* reference */
+	gpio_set_af(ADC_PORT, PORT_PMUX_FUN_B, ADC_POS_PIN ); /* +input */
+	gpio_set_af(ADC_PORT, PORT_PMUX_FUN_B, ADC_REF_PIN); /* reference */
 
 	set_periph_clk(GCLK1, GCLK_ID_ADC);
 	periph_clk_en(GCLK_ID_ADC, 1);
@@ -134,7 +134,7 @@ static void counter_init(void)
 
 static void button_init(void)
 {
-	gpio_config_special(BUTTON_PORT, BUTTON_PIN, SOC_GPIO_PERIPH_A);
+	gpio_set_af(BUTTON_PORT, PORT_PMUX_FUN_A , BUTTON_PIN );
 
 	/* enable bus and clock */
 	INSERTBF(PM_APBAMASK_EIC, 1, PM->apbamask);
@@ -159,38 +159,40 @@ void platform_init(void)
 
 	usb_setup();
 
-	gpio_config_output(LED_PORT, LED_IDLE_RUN, 0);
-	gpio_config_output(TMS_PORT, TMS_PIN, 0);
-	gpio_config_output(TCK_PORT, TCK_PIN, 0);
-	gpio_config_output(TDI_PORT, TDI_PIN, 0);
+	gpio_mode_setup(LED_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, LED_IDLE_RUN);
+	gpio_mode_setup(TMS_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, TMS_PIN);
+	gpio_mode_setup(TCK_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, TCK_PIN);
+	gpio_mode_setup(TDI_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, TDI_PIN);
+	gpio_mode_setup(TMS_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, TMS_DIR_PIN);
 
-	gpio_config_output(TMS_PORT, TMS_DIR_PIN, 0);
 	gpio_set(TMS_PORT, TMS_DIR_PIN);
 
 	/* enable both input and output with pullup disabled by default */
 	PORT_DIRSET(SWDIO_PORT) = SWDIO_PIN;
-	PORT_PINCFG(SWDIO_PORT, SWDIO_PIN_NUM) |= GPIO_PINCFG_INEN | GPIO_PINCFG_PULLEN;
+	PORT_PINCFG(SWDIO_PORT, SWDIO_PIN_NUM) |= PORT_PINCFG_INEN | PORT_PINCFG_PULLEN;
 	gpio_clear(SWDIO_PORT, SWDIO_PIN);
 
 	/* configure swclk_pin as output */
-	gpio_config_output(SWCLK_PORT, SWCLK_PIN, 0);
+	gpio_mode_setup(SWCLK_PORT, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, SWCLK_PIN);
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
 
-	gpio_config_input(TDO_PORT, TDO_PIN, 0);
-	gpio_config_output(SRST_PORT, SRST_PIN, GPIO_OUT_FLAG_DEFAULT_HIGH);
+	gpio_mode_setup(TDO_PORT, GPIO_MODE_INPUT, 0, TDO_PIN );
+	gpio_mode_setup(SRST_PORT, GPIO_MODE_OUTPUT,  GPIO_CNF_PULLUP, SRST_PIN);
+
 	gpio_clear(SRST_PORT, SRST_PIN);
 
 	/* setup uart led, disable by default*/
-	gpio_config_output(LED_PORT_UART, LED_UART, 0);//GPIO_OUT_FLAG_DEFAULT_HIGH);
+	gpio_mode_setup(LED_PORT_UART, GPIO_MODE_OUTPUT, GPIO_CNF_PULLDOWN, LED_UART );	//GPIO_OUT_FLAG_DEFAULT_HIGH);
+
 	gpio_clear(LED_PORT_UART, LED_UART);
 
 	/* set up TPWR */
 	gpio_set(PWR_BR_PORT, PWR_BR_PIN);
-	gpio_config_output(PWR_BR_PORT, PWR_BR_PIN, GPIO_OUT_FLAG_DEFAULT_HIGH);
+	gpio_mode_setup(PWR_BR_PORT, GPIO_MODE_OUTPUT,  GPIO_CNF_PULLUP, PWR_BR_PIN);
 
 	timing_init();
-	usbuart_init();
-	cdcacm_init();
+//FIXME	usbuart_init();
+//FIXME	cdcacm_init();
 	adc_init();
 	counter_init();
 	button_init();
@@ -202,7 +204,7 @@ void platform_srst_set_val(bool assert)
 	volatile int i;
 	if (!assert) {
 		gpio_clear(SRST_PORT, SRST_PIN);
-		for(i = 0; i < 10000; i++) asm("nop");
+		for(i = 0; i < 10000; i++) __asm__ volatile("nop");
 		srst_state = 0;
 	} else {
 		gpio_set(SRST_PORT, SRST_PIN);
@@ -230,7 +232,7 @@ void platform_target_set_power(bool power)
 
 void platform_delay(uint32_t ms)
 {
-	platform_timeout timeout;
+	platform_timeout_s timeout;
 	platform_timeout_set(&timeout, ms);
 	while (!platform_timeout_is_expired(&timeout));
 }
@@ -273,12 +275,14 @@ char *serial_no_read(char *s, int max)
 	return s;
 #else
         int i;
+
 	volatile uint32_t unique_id = *(volatile uint32_t *)0x0080A00C +
 		*(volatile uint32_t *)0x0080A040 +
 		*(volatile uint32_t *)0x0080A044 +
 		*(volatile uint32_t *)0x0080A048;
 	
         /* Fetch serial number from chip's unique ID */
+
         for(i = 0; i < max; i++) {
                 s[7-i] = ((unique_id >> (4*i)) & 0xF) + '0';
         }

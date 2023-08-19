@@ -26,7 +26,7 @@
  */
 
 #include "general.h"
-#include "cdcacm.h"
+#include "usb_serial.h"
 
 void traceswo_init(void)
 {
