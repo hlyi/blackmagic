@@ -198,24 +198,24 @@ void platform_init(void)
 	button_init();
 }
 
-uint8_t srst_state;
-void platform_srst_set_val(bool assert)
+uint8_t nrst_state;
+void platform_nrst_set_val(bool assert)
 {
 	volatile int i;
 	if (!assert) {
 		gpio_clear(SRST_PORT, SRST_PIN);
 		for(i = 0; i < 10000; i++) __asm__ volatile("nop");
-		srst_state = 0;
+		nrst_state = 0;
 	} else {
 		gpio_set(SRST_PORT, SRST_PIN);
-		srst_state = 1;
+		nrst_state = 1;
 	}
 }
 
-bool platform_srst_get_val(void)
+bool platform_nrst_get_val(void)
 {
 	//return gpio_get(SRST_PORT, SRST_PIN) != 0;
-	return srst_state;
+	return nrst_state;
 }
 
 bool platform_target_get_power(void)
@@ -348,4 +348,9 @@ void platform_max_frequency_set(uint32_t freq)
 uint32_t platform_max_frequency_get(void)
 {
 	return 0;
+}
+
+void platform_target_clk_output_enable(bool enable)
+{
+	(void)enable;
 }
